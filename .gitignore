@@ -1,0 +1,14 @@
+# Build output
+build/
+.pio/
+*.uf2
+sdkconfig
+sdkconfig.old
+managed_components/
+test/host/build/
+__pycache__/
+*.pyc
+
+# WiFi credentials (never commit)
+wifi_creds.csv
+wifi_creds.bin

@@ -1,0 +1,7 @@
+## Managed component dependencies (ESP-IDF Component Manager).
+## mdns moved out of the IDF core after 5.0, so it is fetched from the registry.
+dependencies:
+  idf: ">=5.2"
+  espressif/mdns: "^1.2.0"
+  espressif/qrcode: "^0.2.0"      # QR codes on the LCD (display.c)
+  espressif/led_strip: "^2.5.5"   # 4x WS2812 status strip over RMT (leds.c)

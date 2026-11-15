@@ -1,0 +1,7 @@
+# NVS seed for WiFi credentials — copy to wifi_creds.csv (gitignored), put your
+# real network in it, then generate + flash the nvs partition (see README.md).
+# Format is the ESP-IDF nvs_partition_gen CSV.
+key,type,encoding,value
+wifi,namespace,,
+ssid,data,string,YourNetworkName
+pass,data,string,YourPassword

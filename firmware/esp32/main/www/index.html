@@ -1,0 +1,1453 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Floppy Bridge</title>
+<style>
+@font-face { font-family: 'LCD8'; font-display: block;
+  src: url(data:font/ttf;base64,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BXUwMDNEBXUwMDNFBXUwMDNGBXUwMDQwBXUwMDQxBXUwMDQyBXUwMDQzBXUwMDQ0BXUwMDQ1BXUwMDQ2BXUwMDQ3BXUwMDQ4BXUwMDQ5BXUwMDRBBXUwMDRCBXUwMDRDBXUwMDREBXUwMDRFBXUwMDRGBXUwMDUwBXUwMDUxBXUwMDUyBXUwMDUzBXUwMDU0BXUwMDU1BXUwMDU2BXUwMDU3BXUwMDU4BXUwMDU5BXUwMDVBBXUwMDVCBXUwMDVDBXUwMDVEBXUwMDVFBXUwMDVGBXUwMDYwBXUwMDYxBXUwMDYyBXUwMDYzBXUwMDY0BXUwMDY1BXUwMDY2BXUwMDY3BXUwMDY4BXUwMDY5BXUwMDZBBXUwMDZCBXUwMDZDBXUwMDZEBXUwMDZFBXUwMDZGBXUwMDcwBXUwMDcxBXUwMDcyBXUwMDczBXUwMDc0BXUwMDc1BXUwMDc2BXUwMDc3BXUwMDc4BXUwMDc5BXUwMDdBBXUwMDdCBXUwMDdDBXUwMDdEBXUwMDdFBXUwMEIwBXUwMEI3BXUyMDE0BXUyMDI2BXUyMTkyBXUyNUIyBXUyNUI2BXUyNUI4BXUyNUJDBXUyNUJFBXUyNUMwBXUyNkEw) format('truetype'); }
+  /* Walkman LCD skin: the same look as the device's status LCD (display.c).
+     Grey-green STN field, ink over ghost segments, rubber keys on a grey
+     shell. Day = reflective (as on the device); night = backlit negative.
+     Text in LCD windows uses LCD8, built from the firmware's font8x8.h
+     (docs/ui-mockups/tools/lcd_font), so it needs no internet. */
+  :root {
+    --shell: #c9cbc6; --shell-hi: #dadcd7; --shell-lo: #a9aba6;
+    --print: #2b2d2c; --print-dim: #6a6d69;
+    --bezel: #1c1d1f;
+    --lcd: #b7bfa3; --ink: #1e2519; --dim: #55604a; --ghost: #a9b197;
+    --key: #3a3c3f; --key-hi: #4c4f53; --key-txt: #e6e7e3;
+    --accent: #d4492c; --amb: #e8a33a;
+    --body: #e4e3dd;
+    --sans: 'Arial Narrow', 'Roboto Condensed', 'Helvetica Neue', Arial, sans-serif;
+    --lcdf: 'LCD8', ui-monospace, 'Consolas', monospace;
+    color-scheme: light;
+  }
+  :root[data-theme="night"] {
+    --shell: #2c2e31; --shell-hi: #393c40; --shell-lo: #1f2023;
+    --print: #d8dad5; --print-dim: #8b8f8a;
+    --bezel: #0b0c0d;
+    --lcd: #121a12; --ink: #b9f08a; --dim: #6f9a52; --ghost: #1f2b1d;
+    --key: #17181a; --key-hi: #232528; --key-txt: #d8dad5;
+    --body: #17181a;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--body); color: var(--print);
+    font: 700 13px/1.3 var(--sans); font-stretch: condensed; letter-spacing: .08em; }
+  button { font-family: inherit; cursor: pointer; }
+  button:disabled { cursor: default; }
+  a { color: inherit; }
+  .hidden { display: none !important; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 24px 16px 40px; }
+
+  /* ---- shell sections ---- */
+  .shell { background: linear-gradient(180deg, var(--shell-hi), var(--shell) 18%, var(--shell) 82%, var(--shell-lo));
+    border-radius: 22px; padding: 22px 26px 26px; margin-bottom: 18px;
+    box-shadow: 0 1px 0 rgba(255,255,255,.5) inset, 0 -2px 0 rgba(0,0,0,.12) inset, 0 6px 18px rgba(0,0,0,.18); }
+  .legend { display: flex; align-items: center; gap: 14px; text-transform: uppercase; margin: 0 4px 12px; flex-wrap: wrap; }
+  .legend .name { font-size: 15px; letter-spacing: .28em; }
+  .legend .model { font-style: italic; color: var(--print-dim); letter-spacing: .18em; }
+  .legend .r { margin-left: auto; color: var(--print-dim); letter-spacing: .12em; font-weight: 400; }
+  .badge { border: 1.5px solid var(--print); border-radius: 3px; padding: 0 5px; font-size: 11px; letter-spacing: .1em; }
+
+  /* ---- LCD windows ---- */
+  .lcd { background: var(--bezel); border-radius: 10px; padding: 10px; min-width: 0; }
+  .field { background: var(--lcd); border-radius: 3px; padding: 12px 14px; position: relative; overflow: hidden; height: 100%;
+    color: var(--ink); font: 400 16px/1 var(--lcdf); letter-spacing: 0; text-transform: uppercase;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.25); }
+  .field::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .06;
+    background: repeating-linear-gradient(0deg, #000 0 1px, transparent 1px 3px),
+                repeating-linear-gradient(90deg, #000 0 1px, transparent 1px 3px); }
+  :root[data-theme="night"] .field { box-shadow: inset 0 0 30px rgba(140,220,90,.08); }
+  .ts { font-size: 16px; color: var(--dim); }
+  .t  { font-size: 24px; }
+  .tl { font-size: 32px; }
+  .dim { color: var(--dim); }
+  .inv { background: var(--ink); color: var(--lcd); padding: 2px 6px 0; }
+  .blink { animation: blink .8s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: .15; } }
+  .ell { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; }
+  .seg7 { display: block; overflow: visible; }
+  .seg7 .on { fill: var(--ink); } .seg7 .off { fill: var(--ghost); }
+  .ic { display: block; shape-rendering: crispEdges; }
+  .ic rect { fill: var(--ghost); }
+  .lit .ic rect, .ic rect.on { fill: var(--ink); }
+  .ic rect.off { fill: var(--ghost); }
+
+  /* ---- rubber keys: glyph on the cap, name printed underneath ---- */
+  .keys { display: flex; flex-wrap: wrap; gap: 14px 12px; margin-top: 18px; }
+  .key { appearance: none; border: 0; background: none; padding: 0; display: inline-flex; flex-direction: column;
+    align-items: center; gap: 6px; color: var(--print); font: inherit; text-transform: uppercase; letter-spacing: .14em; white-space: nowrap; }
+  .key > i { display: block; width: 74px; height: 30px; border-radius: 15px; position: relative; font-style: normal;
+    background: linear-gradient(180deg, var(--key-hi), var(--key));
+    box-shadow: 0 2px 0 rgba(0,0,0,.35), 0 1px 0 rgba(255,255,255,.12) inset; transition: transform .05s; }
+  .key:active:not(:disabled) > i { transform: translateY(2px); box-shadow: none; }
+  .key > i > b { position: absolute; inset: 0; display: grid; place-items: center; color: var(--key-txt); font-size: 13px; letter-spacing: 0; }
+  .key.rec > i > b { color: var(--accent); }
+  .key:disabled { opacity: .45; }
+  .key.sm > i { width: 52px; }
+  .key.on > i { box-shadow: 0 0 0 2px var(--print), 0 2px 0 rgba(0,0,0,.35); }
+  .led { position: absolute; top: 5px; right: 9px; width: 5px; height: 5px; border-radius: 50%; background: transparent; }
+  .led.amb { background: var(--amb); box-shadow: 0 0 5px var(--amb); }
+  .led.red { background: var(--accent); box-shadow: 0 0 5px var(--accent); }
+  .led.grn { background: #6fd36a; box-shadow: 0 0 5px #6fd36a; }
+  .led.busy { animation: blink .8s steps(1) infinite; }
+  .key:disabled .led:not(.busy) { background: transparent; box-shadow: none; }
+  .keys .push { margin-left: auto; }
+
+  /* ---- 1 · main display ---- */
+  .main { display: grid; grid-template-columns: 1.25fr 1fr; gap: 14px; }
+  .iconrow { display: flex; align-items: center; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--ghost); margin-bottom: 12px; flex-wrap: wrap; }
+  .ann { display: inline-flex; align-items: center; gap: 6px; }
+  .ann .annt { display: none; }
+  .ann.lit .annt { display: inline; }
+  .clk { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .clk.unset #clockDate { color: var(--ink); }
+  .ctrs { display: flex; gap: 22px; align-items: flex-end; flex-wrap: wrap; }
+  .ctr .ts { display: block; margin-bottom: 6px; }
+  .ramp { display: flex; gap: 3px; align-items: flex-end; height: 18px; margin-top: 14px; }
+  .ramp i { flex: 1; background: var(--ghost); }
+  .ramp i.on { background: var(--ink); }
+  .status { margin-top: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .status .push { margin-left: auto; }
+  #stHint { margin-top: 8px; min-height: 1em; word-break: break-word; }
+  #cursor { animation: blink 1s steps(1) infinite; }
+
+  .tmap .hd { display: flex; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
+  .tgrid { display: grid; grid-template-columns: repeat(20, 1fr); gap: 4px 3px; max-width: 440px; margin: 0 auto; }
+  .cell { display: grid; grid-template-rows: 1fr 1fr; gap: 2px; aspect-ratio: 6 / 17; }
+  .cell i { background: var(--ghost); }
+  .cell i.good  { background: var(--ink); }
+  .cell i.retry { background: linear-gradient(0deg, var(--ink) 0 45%, var(--ghost) 45%); }
+  .cell i.bad   { background: var(--ink); outline: 2px solid var(--ink); animation: cellblink .8s steps(1) infinite; }
+  @keyframes cellblink { 50% { background: var(--ghost); outline-color: var(--ghost); } }
+  .tleg { display: flex; gap: 6px 14px; flex-wrap: wrap; margin-top: 10px; }
+  .tleg span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 9px; height: 16px; display: inline-grid; grid-template-rows: 1fr 1fr; gap: 2px; }
+  .sw i { background: var(--ghost); }
+  .sw.good i, .sw.bad i { background: var(--ink); }
+  .sw.retry i:last-child { background: linear-gradient(0deg, var(--ink) 0 45%, var(--ghost) 45%); }
+
+  /* ---- 2 · meters ---- */
+  .meters { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .meter { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 16px; align-items: end; }
+  .meter .big { display: flex; align-items: flex-end; gap: 2px; }
+  .meter > div > div + div { margin-top: 5px; }
+  .status .inv { margin-right: 6px; }
+  .meter .bars { grid-column: 1 / -1; display: flex; gap: 3px; align-items: flex-end; height: 26px; margin-top: 6px; }
+  .meter .bars i { flex: 1; background: var(--ghost); }
+  .meter .bars i.on { background: var(--ink); }
+  #pwrSub.warn { background: var(--ink); color: var(--lcd); padding: 2px 6px 0; }
+
+  /* ---- 3 · disk contents ---- */
+  .viewer { display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); gap: 18px; }
+  .screen { display: grid; gap: 8px; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-width: 0; }
+  .pic { position: relative; overflow: hidden; border: 2px solid var(--ink); aspect-ratio: 4 / 3; background: var(--lcd); }
+  .pic img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; image-orientation: from-image; }
+  .pic .ext { position: absolute; inset: 0; display: grid; place-items: center; font-size: 64px; }
+  .pic .msg { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 20px; font-size: 24px; line-height: 1.3; }
+  /* Photos are shown "printed on the LCD" unless COLOUR is on. */
+  .pic img, .fr .t img, .sd-tile img { filter: grayscale(1) contrast(1.1) brightness(1.2); mix-blend-mode: multiply; }
+  :root[data-theme="night"] .pic img, :root[data-theme="night"] .fr .t img, :root[data-theme="night"] .sd-tile img {
+    mix-blend-mode: screen; filter: grayscale(1) contrast(1.2) brightness(.85) sepia(1) hue-rotate(40deg) saturate(2.2); }
+  :root.truecolour .pic img, :root.truecolour .fr .t img, :root.truecolour .sd-tile img { filter: none; mix-blend-mode: normal; }
+  .pic::after { content: ""; position: absolute; inset: 0; opacity: .15; pointer-events: none;
+    background: repeating-linear-gradient(0deg, var(--lcd) 0 1px, transparent 1px 3px); }
+  :root.truecolour .pic::after { display: none; }
+  .side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .side .keys { margin-top: 0; }
+  .side .lcd { margin-top: auto; }
+  #gridWrap { margin-top: 14px; }
+  #grid { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-color: var(--dim) var(--lcd); }
+  .fr { flex: 0 0 auto; width: 92px; cursor: pointer; display: flex; flex-direction: column; gap: 5px; }
+  .fr .t { width: 92px; aspect-ratio: 4 / 3; border: 2px solid var(--ghost); overflow: hidden; background: var(--lcd);
+           display: grid; place-items: center; font-size: 24px; color: var(--dim); }
+  .fr .t img { width: 100%; height: 100%; object-fit: cover; display: block; image-orientation: from-image; }
+  .fr.cur .t { border-color: var(--ink); }
+  .fr .n { display: flex; align-items: center; gap: 5px; color: var(--dim); }
+  .fr.cur .n { color: var(--ink); }
+  .fr .n .led { display: none; }
+  .fr .n .inv { padding: 1px 3px 0; }
+  .boxchk { appearance: none; -webkit-appearance: none; width: 13px; height: 13px; margin: 0 0 0 auto; border: 2px solid var(--ink); background: transparent; cursor: pointer; flex: none; }
+  .boxchk:checked { background: var(--ink); }
+
+  /* ---- 4 · SD card ---- */
+  .sd { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 18px; align-items: start; }
+  .crumb { appearance: none; border: 0; background: none; padding: 0; color: var(--ink); font: 400 24px var(--lcdf); text-transform: uppercase; cursor: pointer; text-align: left; margin-bottom: 8px; }
+  .files { display: grid; }
+  .sd-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 4px; font-size: 24px; border-bottom: 1px dashed var(--ghost); }
+  .sd-row:last-child { border-bottom: 0; }
+  .sd-row .nm { word-break: break-all; } .sd-row .sz { color: var(--dim); flex: none; }
+  .sd-row.dir, .sd-row.img { cursor: pointer; }
+  .sd-row.dir:hover, .sd-row.img:hover { background: var(--ink); color: var(--lcd); }
+  .sd-row.dir:hover .sz, .sd-row.img:hover .sz { color: var(--lcd); }
+  .sd-gallery { display: flex; flex-direction: column; gap: 16px; }
+  .sd-group-head { display: flex; justify-content: space-between; gap: 10px; font-size: 24px; padding-bottom: 6px; border-bottom: 1px solid var(--ghost); }
+  .sd-group-head .cnt { color: var(--dim); }
+  .sd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
+  .sd-tile .p { aspect-ratio: 4 / 3; border: 2px solid var(--ink); overflow: hidden; background: var(--lcd); }
+  .sd-tile img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; image-orientation: from-image; }
+  .sd-tile .cap { margin-top: 4px; word-break: break-all; }
+  #sdEmpty { font-size: 24px; padding: 8px 0; }
+
+  /* ---- 5 · service (dark shell, like the rear of the box) ---- */
+  .shell.svc { background: linear-gradient(180deg, #2f3134, #25272a); color: #d8dad5; }
+  .shell.svc .legend .model, .shell.svc .legend .r { color: #8b8f8a; }
+  .shell.svc .key { color: #d8dad5; }
+  .shell.svc .key > i { background: linear-gradient(180deg, #4c4f53, #2a2c2f); }
+  .svcbody { margin-top: 4px; display: grid; gap: 14px; }
+  .kv { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 18px; }
+  .kvi span { display: block; font-size: 16px; color: var(--dim); margin-bottom: 3px; }
+  .kvi b { font-weight: 400; font-size: 24px; word-break: break-all; }
+  .kvi.warn b { background: var(--ink); color: var(--lcd); padding: 1px 4px 0; }
+  #detailLine { margin-top: 12px; line-height: 1.3; word-break: break-all; text-transform: none; }
+  .snrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 20ch) auto; gap: 8px 16px; align-items: end; margin-top: 8px; }
+  .lcdinput { font: 400 24px var(--lcdf); background: transparent; border: 0; border-bottom: 2px solid var(--ink); color: var(--ink);
+    width: 100%; min-width: 0; text-transform: uppercase; outline: none; padding: 2px 0; }
+  .lcdinput::placeholder { color: var(--ghost); }
+  #snMsg { margin-top: 10px; text-transform: none; }
+  #snMsg.ok, #fwMsg.ok { color: var(--ink); }
+  #snMsg.err, #fwMsg.err { background: var(--ink); color: var(--lcd); padding: 2px 6px 0; }
+  #fwMsg.warn { color: var(--ink); }
+  .fwnow { font-size: 24px; word-break: break-all; } .fwnow.unset, .fwnow.warn { color: var(--ink); text-decoration: underline dashed; }
+  #snNow { font-size: 32px; }
+  .fwrow { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto auto; gap: 8px 16px; align-items: center; padding: 12px 0; border-top: 1px dashed var(--ghost); }
+  .fwrow:first-of-type { margin-top: 8px; }
+  .fwwho { font-size: 24px; } .fwwho small { display: block; font-size: 16px; color: var(--dim); margin-top: 3px; }
+  #fwRpAddr { width: 11ch; font-size: 24px; margin-left: 6px; }
+  .fwpick { cursor: pointer; } .fwpick input { display: none; }
+  .fwfile { grid-column: 1 / -1; color: var(--dim); word-break: break-all; text-transform: none; }
+  .fwfile.ok { color: var(--ink); } .fwfile.warn { color: var(--ink); text-decoration: underline dashed; }
+  .fwfile.bad { background: var(--ink); color: var(--lcd); padding: 2px 6px 0; }
+  .fwbar { display: flex; gap: 3px; height: 14px; margin-top: 10px; }
+  .fwbar i { flex: 1; background: var(--ghost); } .fwbar i.on { background: var(--ink); }
+  #fwMsg { margin-top: 10px; min-height: 1em; word-break: break-word; text-transform: none; }
+  .bot { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .serial { color: #8b8f8a; letter-spacing: .12em; font-weight: 400; }
+  .serial b { color: #d8dad5; }
+  .guard { display: flex; align-items: center; gap: 12px; margin-left: auto; text-transform: uppercase; line-height: 1.3; }
+  .guard small { color: #8b8f8a; font-weight: 400; text-transform: none; }
+  #forgetWifi { width: 40px; height: 40px; border-radius: 50%; border: 3px solid #555; flex: none;
+    background: radial-gradient(circle, var(--accent) 0 40%, #5a1b10 41% 46%, #222 47%); }
+
+  .foot { text-align: center; color: var(--print-dim); margin-top: 6px; letter-spacing: .2em; font-weight: 400; text-transform: uppercase; }
+
+  /* Lightbox: always true colour. Any click closes it. */
+  .lightbox { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+              background: rgba(0,0,0,.88); padding: 3vmin; cursor: zoom-out; }
+  .lightbox img { max-width: 94vw; max-height: 94vh; object-fit: contain; border-radius: 8px; box-shadow: 0 20px 60px rgba(0,0,0,.6); image-orientation: from-image; }
+
+  /* ---- phone ---- */
+  @media (max-width: 760px) {
+    .wrap { padding: 12px 10px 30px; }
+    .shell { padding: 16px 14px 18px; border-radius: 16px; }
+    .main, .meters, .viewer, .sd { grid-template-columns: minmax(0, 1fr); }
+    .kv { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .fwrow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .fwwho, .fwnow { grid-column: 1 / -1; }
+    .snrow { grid-template-columns: minmax(0, 1fr) auto; } #snNow { grid-column: 1 / -1; }
+    .legend .r { margin-left: 0; width: 100%; }
+    .key > i { width: 62px; } .key.sm > i { width: 50px; }
+    .keys .push { margin-left: 0; }
+    .guard { margin-left: 0; }
+    .ctrs { gap: 14px; }
+    .ctr svg { height: 40px; width: auto; }
+    .meter .big svg { height: 36px; width: auto; }
+    .wide { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 1 · main display: status, counters, track map, transport keys -->
+  <section class="shell">
+    <div class="legend"><span class="name">FLOPPY</span><span class="model">GW-WIFI</span><span class="badge">2HD</span>
+      <span class="r" id="subtitle">&nbsp;</span></div>
+    <div class="main">
+      <div class="lcd"><div class="field">
+        <div class="iconrow">
+          <span class="ann" id="aWifi" title="Wi-Fi"></span><span class="ann" id="aRead" title="Reading"></span>
+          <span class="ann" id="aDisk" title="Disk in memory"></span><span class="ann" id="aSd" title="SD card"></span>
+          <span class="ann" id="aBad" title="Bad sectors"><span class="annt t"></span></span>
+          <span class="clk" id="clock" title="Device clock"><span id="clockTime"></span><span class="ts" id="clockDate">CLOCK NOT SET</span></span>
+          <span class="ann" id="aChg" title="USB power"></span><span id="battIcon" title="Battery"></span>
+        </div>
+        <div class="ctrs">
+          <div class="ctr"><span class="ts">FILES</span><span id="cFiles"></span></div>
+          <div class="ctr"><span class="ts">BAD SEC</span><span id="cBad"></span></div>
+          <div class="ctr"><span class="ts">TIME</span><span id="cTime"></span></div>
+        </div>
+        <div class="ramp" id="ramp"></div>
+        <div class="status">
+          <span class="tl inv" id="stBadge">NO DISK</span>
+          <span class="tl" id="status">INSERT DISK</span>
+          <span class="t dim push" id="sectorLine">0/2880 SEC</span>
+        </div>
+        <div class="ts" id="stHint">&nbsp;</div>
+      </div></div>
+
+      <div class="lcd"><div class="field tmap" id="diskMap" role="img" aria-label="Floppy read map: 80 cylinders by 2 heads, each track shown by read outcome">
+        <div class="hd"><span class="ts">TRACKS<span class="wide"> · HEAD 0 OVER HEAD 1</span></span><span class="ts">CYL 0-79</span></div>
+        <div class="tgrid" id="tgrid"></div>
+        <div class="tleg ts" id="mapLegend">
+          <span><span class="sw good"><i></i><i></i></span>CLEAN <b id="mcGood">0</b></span>
+          <span><span class="sw retry"><i></i><i></i></span>RETRIED <b id="mcRetry">0</b></span>
+          <span><span class="sw bad"><i></i><i></i></span>FAILED (BLINKS) <b id="mcBad">0</b></span>
+          <span><span class="sw"><i></i><i></i></span>NOT READ <b id="mcUnread">160</b></span>
+        </div>
+      </div></div>
+    </div>
+    <div class="keys">
+      <button class="key" id="read"><i><b>&#9654;</b><span class="led"></span></i><span class="lbl">READ</span></button>
+      <button class="key" id="retry" disabled title="Re-read only the tracks that came out bad"><i><b>&#8635;</b><span class="led"></span></i><span class="lbl">RETRY BAD</span></button>
+      <button class="key rec" id="sdSave" disabled><i><b>&#9679;</b><span class="led"></span></i><span class="lbl">SAVE TO SD</span></button>
+      <button class="key" id="zip" disabled><i><b>&#11015;</b><span class="led"></span></i><span class="lbl">DOWNLOAD ALL</span></button>
+      <button class="key" id="sdSaveSel" disabled><i><b>&#11014;</b><span class="led"></span></i><span class="lbl">COPY SEL</span></button>
+      <button class="key push" id="themeToggle" title="Day (reflective) / night (backlit)"><i><b>&#9788;</b><span class="led"></span></i><span class="lbl">LIGHT</span></button>
+    </div>
+  </section>
+
+  <!-- 2 · battery (MAX17048 + BQ25180) and SD space -->
+  <section class="shell">
+    <div class="legend"><span class="name">POWER / STORAGE</span></div>
+    <div class="meters">
+      <div class="lcd"><div class="field meter" id="battMeter">
+        <span class="big"><span id="pwrDig"></span><span class="tl">%</span></span>
+        <div><div class="ts">BATTERY</div><div class="t" id="pwrSub">NO BATTERY</div><div class="ts" id="pwrInfo">&nbsp;</div></div>
+        <div class="bars" id="battBars"></div>
+      </div></div>
+      <div class="lcd"><div class="field meter" id="sdMeter">
+        <span class="big"><span id="sdDig"></span><span class="tl">%</span></span>
+        <div><div class="ts">SD CARD USED</div><div class="t" id="sdUse">NO CARD</div><div class="ts" id="sdUseSub">&nbsp;</div></div>
+        <div class="bars" id="sdBars"></div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 3 · disk contents: one file at a time, plus a strip of all of them -->
+  <section class="shell">
+    <div class="legend"><span class="name">DISK CONTENTS</span><span class="r" id="monInfo">&nbsp;</span></div>
+    <div class="viewer">
+      <div class="lcd"><div class="field screen">
+        <div class="row"><span style="display:flex;align-items:flex-end;gap:8px"><span id="vIdx"></span><span class="t dim" id="vTot"></span></span><span class="t" id="vSize"></span></div>
+        <div class="pic" id="tube"></div>
+        <div class="row"><span class="tl ell" id="vName">NO DISK</span><span class="t" id="vTag"></span></div>
+      </div></div>
+      <div class="side">
+        <div class="keys">
+          <button class="key sm" id="prevKey" title="Previous file (←)"><i><b>&#9664;&#9664;</b><span class="led"></span></i><span class="lbl">PREV</span></button>
+          <button class="key sm" id="nextKey" title="Next file (→)"><i><b>&#9654;&#9654;</b><span class="led"></span></i><span class="lbl">NEXT</span></button>
+          <button class="key sm" id="selKey"><i><b>&#10003;</b><span class="led"></span></i><span class="lbl">SELECT</span></button>
+          <button class="key sm" id="dlKey"><i><b>&#11015;</b><span class="led"></span></i><span class="lbl">SAVE FILE</span></button>
+          <button class="key sm" id="delKey"><i><b>&#10005;</b><span class="led"></span></i><span class="lbl">ERASE</span></button>
+          <button class="key sm" id="colKey" title="Show photos in true colour"><i><b>&#9680;</b><span class="led"></span></i><span class="lbl">COLOUR</span></button>
+        </div>
+        <div class="lcd"><div class="field"><div class="ts">SELECTED FOR COPY</div><div class="tl" id="selCount" style="margin-top:8px">0 / 0</div></div></div>
+      </div>
+    </div>
+    <div class="lcd hidden" id="gridWrap"><div class="field"><div id="grid"></div></div></div>
+  </section>
+
+  <!-- 4 · SD card -->
+  <section class="shell" id="sdPanel">
+    <div class="legend"><span class="name">SD CARD</span></div>
+    <div class="sd">
+      <div class="side">
+        <div class="lcd"><div class="field"><div class="ts">SD CARD FREE</div><div class="t" id="sdInfo" style="margin-top:6px">NO CARD</div></div></div>
+        <div class="keys" id="sdToggle">
+          <button class="key sm on" data-view="list"><i><b>&#9776;</b><span class="led"></span></i><span class="lbl">LIST</span></button>
+          <button class="key sm" data-view="gallery"><i><b>&#9638;</b><span class="led"></span></i><span class="lbl">GALLERY</span></button>
+        </div>
+      </div>
+      <div class="lcd"><div class="field">
+        <button class="crumb hidden" id="sdCrumb"></button>
+        <div class="hidden" id="sdGrid"></div>
+        <div class="sd-gallery hidden" id="sdGallery"></div>
+        <div id="sdEmpty">NO SD CARD DETECTED</div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 5 · service: diagnostics, serial number, firmware update -->
+  <section class="shell svc">
+    <div class="legend"><span class="name">SERVICE</span><span class="model">DIAGNOSTICS</span>
+      <span class="r"><button class="key sm" id="diagToggle"><i><b>&#9662;</b><span class="led"></span></i><span class="lbl">SHOW</span></button></span></div>
+    <div id="diagBody" class="svcbody hidden">
+      <div class="lcd"><div class="field">
+        <div class="kv" id="diagStats"></div>
+        <div class="ts" id="detailLine">—</div>
+      </div></div>
+      <div class="lcd"><div class="field">
+        <div class="ts">SERIAL NUMBER</div>
+        <div class="snrow">
+          <div class="fwnow" id="snNow">—</div>
+          <input class="lcdinput" id="snInput" maxlength="32" spellcheck="false" autocomplete="off" placeholder="GW4-0001" aria-label="Serial number">
+          <button class="key sm" id="snGo" disabled style="color:var(--ink)"><i><b>&#10003;</b><span class="led"></span></i><span class="lbl">SET</span></button>
+        </div>
+        <div class="ts" id="snMsg">Stored in the RTC's EEPROM — survives battery removal and firmware reflashes.</div>
+      </div></div>
+      <div class="lcd"><div class="field">
+        <div class="ts">FIRMWARE UPDATE</div>
+        <div class="fwrow">
+          <div class="fwwho">BRIDGE<small>ESP32-S3 · GW_WIFI_BRIDGE.BIN</small></div>
+          <div class="fwnow" id="fwEspNow">—</div>
+          <label class="key sm fwpick" style="color:var(--ink)"><input type="file" id="fwEspFile" accept=".bin"><i><b>+</b></i><span class="lbl">CHOOSE</span></label>
+          <button class="key sm" id="fwEspGo" disabled style="color:var(--ink)"><i><b>&#11014;</b><span class="led"></span></i><span class="lbl">UPDATE</span></button>
+          <div class="fwfile ts" id="fwEspInfo">no file chosen</div>
+        </div>
+        <div class="fwrow">
+          <div class="fwwho">CONTROLLER<small>RP2354 · GW_RP2354.BIN</small></div>
+          <div class="fwnow">@ <input class="lcdinput" id="fwRpAddr" value="0x10000000" spellcheck="false" aria-label="Flash address"></div>
+          <label class="key sm fwpick" style="color:var(--ink)"><input type="file" id="fwRpFile" accept=".bin"><i><b>+</b></i><span class="lbl">CHOOSE</span></label>
+          <button class="key sm" id="fwRpGo" disabled style="color:var(--ink)"><i><b>&#11014;</b><span class="led"></span></i><span class="lbl">FLASH</span></button>
+          <div class="fwfile ts" id="fwRpInfo">no file chosen</div>
+        </div>
+        <div class="fwbar hidden" id="fwBar"></div>
+        <div class="t" id="fwMsg"></div>
+      </div></div>
+      <div class="lcd"><div class="field">
+        <div class="ts">WRITE A DISK</div>
+        <div class="fwrow">
+          <div class="fwwho">FROM A FILE<small>RAW 1.44 MB IMAGE · .IMG</small></div>
+          <div class="fwnow">&nbsp;</div>
+          <label class="key sm fwpick" style="color:var(--ink)"><input type="file" id="imgFile" accept=".img,.ima,.dsk,.bin"><i><b>+</b></i><span class="lbl">CHOOSE</span></label>
+          <button class="key sm" id="imgGo" disabled style="color:var(--ink)"><i><b>&#9679;</b><span class="led"></span></i><span class="lbl">WRITE</span></button>
+          <div class="fwfile ts" id="imgInfo">no file chosen</div>
+        </div>
+        <div class="fwrow">
+          <div class="fwwho">COPY A DISK<small>READ IT · SWAP DISKS · WRITE</small></div>
+          <div class="fwnow">&nbsp;</div>
+          <span></span>
+          <button class="key sm" id="imgCopy" disabled style="color:var(--ink)"><i><b>&#9679;</b><span class="led"></span></i><span class="lbl">WRITE</span></button>
+          <div class="fwfile ts">writes the disk image now in memory to the floppy in the drive</div>
+        </div>
+        <div class="t" id="imgMsg"></div>
+      </div></div>
+      <div class="bot"><span class="serial">MODEL GW-WIFI · S/N <b id="snPlate">—</b> · RP2354 + ESP32-S3 · DC 3.7 V LI-ION</span>
+        <div class="guard"><button id="forgetWifi" aria-label="Forget Wi-Fi"></button><div>FORGET WI-FI<br><small>reboots into the setup network</small></div></div></div>
+    </div>
+  </section>
+
+  <div class="foot" id="foot">gw-wifi</div>
+</div>
+
+<div id="lightbox" class="lightbox hidden"><img id="lightboxImg" alt=""></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const readBtn = $('#read'), zipBtn = $('#zip'), statusEl = $('#status'),
+      sectorLine = $('#sectorLine'), grid = $('#grid'), gridWrap = $('#gridWrap'), tube = $('#tube'),
+      themeToggle = $('#themeToggle'), diagToggle = $('#diagToggle'), diagBody = $('#diagBody'),
+      diagStats = $('#diagStats'), detailLine = $('#detailLine'),
+      lightbox = $('#lightbox'), lightboxImg = $('#lightboxImg'), subtitle = $('#subtitle'),
+      clockBox = $('#clock'), clockDate = $('#clockDate'),
+      pwrSub = $('#pwrSub'), pwrInfo = $('#pwrInfo'),
+      sdSave = $('#sdSave'), sdSaveSel = $('#sdSaveSel'), sdInfo = $('#sdInfo'),
+      sdGrid = $('#sdGrid'), sdEmpty = $('#sdEmpty'),
+      sdGallery = $('#sdGallery'), sdToggle = $('#sdToggle'), sdCrumb = $('#sdCrumb');
+
+// Keys: glyph on the cap, name printed below in .lbl; only the name changes.
+const LBL = { save: 'SAVE TO SD', zip: 'DOWNLOAD ALL', copy: 'COPY SEL' };
+const keyText = (btn, t) => { btn.querySelector('.lbl').textContent = t; };
+const keyIs = (btn, t) => btn.querySelector('.lbl').textContent === t;
+const setLed = (btn, cls) => { const l = btn.querySelector('.led'); if (l) l.className = 'led' + (cls ? ' ' + cls : ''); };
+
+// ---- printed LCD icons: the exact 16x11 bitmaps from display.c ----
+const IC = {
+  wifi: ["                ","   ##########   "," ##          ## ","#    ######    #","   ##      ##   ","  #   ####   #  ","     #    #     ","       ##       ","      ####      ","       ##       ","                "],
+  play: ["   #            ","   ###          ","   #####        ","   #######      ","   #########    ","   ##########   ","   #########    ","   #######      ","   #####        ","   ###          ","   #            "],
+  disk: [" ############   "," ##  ####  ###  "," ##  ## #  #### "," ##  ####  #### "," ############## "," ############## "," ##          ## "," ## ######## ## "," ##          ## "," ## ######## ## "," ############## "],
+  sd:   ["   ##########   ","   # # # # ###  ","   # # # # #### ","   ########### #","   #          ##","   #   SD     ##","   #          ##","   #          ##","   #          ##","   #          ##","   #############"],
+  warn: ["       ##       ","      ####      ","      ####      ","     ##  ##     ","     ## ###     ","    ### ####    ","    ### ####    ","   ##########   ","   #### #####   ","  ############  ","  ############  "],
+  bolt: ["    ###","   ### ","   ##  ","  ##   "," ######"," ######","   ##  ","  ##   ","  #    "," #     ","#      "],
+};
+function icSvg(name, px = 2) {
+  const b = IC[name], w = b[0].length;
+  let r = '';
+  b.forEach((row, y) => [...row].forEach((c, x) => { if (c === '#') r += `<rect x="${x}" y="${y}" width="1.02" height="1.02"/>`; }));
+  return `<svg class="ic" width="${w * px}" height="${11 * px}" viewBox="0 0 ${w} 11" aria-hidden="true">${r}</svg>`;
+}
+function battSvg(bars, px = 2) {
+  let r = '<rect class="on" x="0" y="0" width="23" height="1"/><rect class="on" x="0" y="10" width="23" height="1"/>'
+        + '<rect class="on" x="0" y="0" width="1" height="11"/><rect class="on" x="22" y="0" width="1" height="11"/><rect class="on" x="23" y="3" width="2" height="5"/>';
+  for (let i = 0; i < 4; i++) r += `<rect class="${i < bars ? 'on' : 'off'}" x="${2 + i * 5}" y="2" width="4" height="7"/>`;
+  return `<svg class="ic" width="${25 * px}" height="${11 * px}" viewBox="0 0 25 11" aria-hidden="true">${r}</svg>`;
+}
+[['#aWifi','wifi'],['#aRead','play'],['#aDisk','disk'],['#aSd','sd'],['#aBad','warn'],['#aChg','bolt']]
+  .forEach(([id, n]) => $(id).insertAdjacentHTML('afterbegin', icSvg(n)));
+// cls: '' = ghost, anything else = lit; 'red' also blinks.
+const ann = (id, cls, text) => {
+  const e = $(id);
+  e.classList.toggle('lit', !!cls); e.classList.toggle('blink', cls === 'red');
+  const t = e.querySelector('.annt'); if (t && text != null) t.textContent = text;
+};
+
+// Bar graphs (ramp under the counters, meters, firmware progress).
+function makeBars(el, n, ramp) {
+  el.innerHTML = Array.from({ length: n }, (_, i) => `<i style="height:${ramp ? (ramp[0] + i * (ramp[1] - ramp[0]) / (n - 1)).toFixed(1) + '%' : '100%'}"></i>`).join('');
+  return [...el.children];
+}
+const paintBars = (cells, lit) => cells.forEach((c, i) => c.classList.toggle('on', i < lit));
+const rampCells = makeBars($('#ramp'), 20, [30, 100]);
+const battCells = makeBars($('#battBars'), 24, [35, 100]);
+const sdCells = makeBars($('#sdBars'), 24, [35, 100]);
+const fwCells = makeBars($('#fwBar'), 40, null);
+
+// Photo lightbox (true colour): same cached URL as the thumbnail.
+function openLightbox(url) { lightboxImg.src = url; lightbox.classList.remove('hidden'); }
+function closeLightbox() { lightbox.classList.add('hidden'); lightboxImg.removeAttribute('src'); }
+lightbox.onclick = closeLightbox;
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeLightbox();
+  else if (!lightbox.classList.contains('hidden') || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  else if (e.key === 'ArrowLeft') step(-1);
+  else if (e.key === 'ArrowRight') step(1);
+});
+
+// Only real raster images get an inline preview; everything else shows its extension.
+const IMG_RE = /\.(jpe?g|png|gif|bmp|webp)$/i;
+const extOf = n => { const m = /\.([^.]+)$/.exec(n); return m ? m[1].toUpperCase() : 'FILE'; };
+const fmtSize = n => n < 1024 ? n + ' B'
+                   : n < 1048576 ? (n / 1024).toFixed(1) + ' KB'
+                   : (n / 1048576).toFixed(1) + ' MB';
+
+// ---- 7-segment digits (SVG), unlit segments in --ghost as on the LCD ----
+const SEGMAP = { '0':'abcdef','1':'bc','2':'abged','3':'abgcd','4':'fgbc','5':'afgcd','6':'afgedc','7':'abc',
+                 '8':'abcdefg','9':'abcdfg','-':'g',' ':'' };
+function seg7(txt, h, cls = '') {
+  const t = 2.0, g = 0.35, sk = -7;
+  const H = (x1, x2, y) => { const s = t / 2; return `${x1+g},${y} ${x1+g+s},${y-s} ${x2-g-s},${y-s} ${x2-g},${y} ${x2-g-s},${y+s} ${x1+g+s},${y+s}`; };
+  const V = (x, y1, y2) => { const s = t / 2; return `${x},${y1+g} ${x+s},${y1+g+s} ${x+s},${y2-g-s} ${x},${y2-g} ${x-s},${y2-g-s} ${x-s},${y1+g+s}`; };
+  const P = { a: H(1,9,1), g: H(1,9,9), d: H(1,9,17), f: V(1,1,9), b: V(9,1,9), e: V(1,9,17), c: V(9,9,17) };
+  let x = 1.5, on = '', off = '';
+  for (const ch of String(txt)) {
+    if (ch === ':') { on += [5.5, 12.5].map(y => `<rect x="${x}" y="${y-0.9}" width="1.8" height="1.8"/>`).join(''); x += 4; continue; }
+    const lit = SEGMAP[ch] ?? '';
+    for (const k of 'abcdefg') { const p = `<polygon transform="translate(${x} 0)" points="${P[k]}"/>`; if (lit.includes(k)) on += p; else off += p; }
+    x += 12.5;
+  }
+  const w = x - 1.5 + 2;
+  return `<svg class="seg7 ${cls}" width="${(w * h / 19).toFixed(1)}" height="${h}" viewBox="0 -0.5 ${w} 19" aria-label="${txt}">`
+       + `<g transform="skewX(${sk}) translate(${-sk * 0.2} 0)"><g class="off">${off}</g><g class="on">${on}</g></g></svg>`;
+}
+const setSeg = (id, txt, h, cls) => { const e = $(id); if (e.dataset.v !== txt) { e.dataset.v = txt; e.innerHTML = seg7(txt, h, cls); } };
+const pad2 = n => String(n).padStart(2, '0');
+
+// ---- track map: 4 rows of 20 cylinders, head 0 over head 1 (as on the LCD) ----
+// From /api/trackmap: map[cyl*2+head] = '0' unread, '1' read clean,
+// '2' OK after retry, '3' could not read.
+const NCYL = 80, NHEAD = 2;
+const TRK_LABEL = { '0':'not read', '1':'read clean', '2':'OK after retry', '3':'could not read' };
+const TRK_CLS = { '0':'', '1':'good', '2':'retry', '3':'bad' };
+const tCells = [];
+for (let c = 0; c < NCYL; c++) {
+  const cell = document.createElement('div'); cell.className = 'cell';
+  const h0 = document.createElement('i'), h1 = document.createElement('i');
+  cell.append(h0, h1); $('#tgrid').appendChild(cell);
+  tCells.push({ cell, h: [h0, h1] });
+}
+let lastMap = '';
+function paintDiskMap(mapStr) {
+  if (!mapStr || mapStr === lastMap) return;
+  lastMap = mapStr;
+  const counts = { '0':0, '1':0, '2':0, '3':0 };
+  for (let c = 0; c < NCYL; c++) {
+    const v = [mapStr[c * NHEAD] || '0', mapStr[c * NHEAD + 1] || '0'];
+    for (let h = 0; h < NHEAD; h++) {
+      counts[v[h]] = (counts[v[h]] || 0) + 1;
+      tCells[c].h[h].className = TRK_CLS[v[h]] || '';
+    }
+    tCells[c].cell.title = `Cyl ${c}\nHead 0 — ${TRK_LABEL[v[0]] || '?'}\nHead 1 — ${TRK_LABEL[v[1]] || '?'}`;
+  }
+  $('#mcGood').textContent = counts['1']; $('#mcRetry').textContent = counts['2'];
+  $('#mcBad').textContent = counts['3'];  $('#mcUnread').textContent = counts['0'];
+}
+
+// Service panel: always collapsed on load.
+function setDiag(open) {
+  diagBody.classList.toggle('hidden', !open);
+  keyText(diagToggle, open ? 'HIDE' : 'SHOW');
+  diagToggle.querySelector('b').textContent = open ? '▴' : '▾';
+}
+setDiag(false);
+diagToggle.onclick = () => setDiag(diagBody.classList.contains('hidden'));
+
+// Forget stored WiFi credentials -> the bridge reboots into its setup portal.
+$('#forgetWifi').onclick = async () => {
+  if (!confirm('Forget the stored WiFi credentials?\n\nThe bridge will reboot into its "Floppy-Setup" setup portal, and you\'ll need to re-enter your network to reach it again.')) return;
+  try { await fetch('/api/wifi/forget', { method: 'POST' }); } catch (e) { /* reboot may drop the response */ }
+  alert('WiFi credentials cleared. The bridge is rebooting into setup mode — join the "Floppy-Setup" network to reconfigure.');
+};
+
+// ---- serial number ----
+// Lives in the RTC's user EEPROM (serialno.c). Setting it the first time is
+// plain; replacing an existing number needs a confirm and goes out with force=1.
+const SN_RE = /^[A-Za-z0-9._-]{1,32}$/;
+const snInput = $('#snInput'), snGo = $('#snGo'), snMsg = $('#snMsg');
+let snCur = null, rtcOk = false;
+function snSync() {
+  const v = snInput.value.trim();
+  $('#snNow').textContent = snCur ? snCur : rtcOk ? 'NOT SET' : 'NO RTC';
+  $('#snNow').className = 'fwnow' + (snCur ? '' : ' unset');
+  $('#snPlate').textContent = snCur || '—';
+  keyText(snGo, snCur ? 'CHANGE' : 'SET');
+  snGo.disabled = !rtcOk || !SN_RE.test(v) || v === snCur;
+}
+snInput.oninput = snSync;
+snInput.onkeydown = e => { if (e.key === 'Enter' && !snGo.disabled) snGo.click(); };
+snGo.onclick = async () => {
+  const v = snInput.value.trim();
+  if (snCur && !confirm(`Change this board's serial number?
+
+${snCur}  →  ${v}`)) return;
+  snGo.disabled = true;
+  try {
+    const r = await fetch('/api/serial?sn=' + encodeURIComponent(v) + (snCur ? '&force=1' : ''), { method: 'POST' });
+    const j = await r.json().catch(() => null);
+    if (j && j.ok) { snCur = j.serial; snInput.value = ''; snMsg.textContent = `Serial number set to ${j.serial}.`; snMsg.className = 'ts ok'; }
+    else { snMsg.textContent = 'Not set: ' + ((j && j.error) || 'HTTP ' + r.status); snMsg.className = 'ts err'; }
+  } catch (e) { snMsg.textContent = 'Not set: ' + e.message; snMsg.className = 'ts err'; }
+  snSync();
+};
+
+// ---- firmware update ----
+// /api/ota (bridge) and /api/rpflash (controller) both take a raw .bin, so
+// each file is sniffed first in case the two get swapped.
+const ESP_SLOT_MAX = 0x400000, RP_IMG_MAX = 512 * 1024, ESP32S3_CHIP_ID = 9;
+const fw = { esp: null, rp: null };      // { file, level: 'ok'|'warn'|'bad', note }
+let fwBusy = false, diskBusy = false, lastOta = null;
+const fwMsg = $('#fwMsg'), fwBar = $('#fwBar');
+const fwEspGo = $('#fwEspGo'), fwRpGo = $('#fwRpGo');
+
+const cstr = (u8, off, n) => { let s = ''; for (let i = off; i < off + n && i < u8.length && u8[i]; i++) s += String.fromCharCode(u8[i]); return s; };
+
+// What kind of image is this? Looks only at the first 4 KB.
+function sniff(u8) {
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  const w = o => o + 4 <= u8.length ? dv.getUint32(o, true) : 0;
+  if (w(0) === 0x0A324655) return { kind: 'uf2' };
+  if (u8[0] === 0xE9) {
+    // ESP app image: 24-byte header + 8-byte segment header, then esp_app_desc_t.
+    if (w(0x20) !== 0xABCD5432) return { kind: 'esp-other' };   // bootloader / merged flash image
+    return { kind: 'esp', chip: dv.getUint16(12, true), ver: cstr(u8, 0x30, 32),
+             proj: cstr(u8, 0x50, 32), built: cstr(u8, 0x80, 16) + ' ' + cstr(u8, 0x70, 16) };
+  }
+  // RP2350 flash image: vector table first — initial SP in SRAM, Thumb reset vector in XIP.
+  const sp = w(0), rv = w(4);
+  if (sp >= 0x20000000 && sp <= 0x20082000 && (rv & 0xFF000001) === 0x10000001) {
+    let marker = false;                              // picobin IMAGE_DEF block start
+    for (let o = 0; o + 4 <= u8.length; o += 4) if (w(o) === 0xFFFFDED3) { marker = true; break; }
+    return { kind: 'rp', marker };
+  }
+  return { kind: 'unknown' };
+}
+
+function checkEsp(file, im) {
+  if (im.kind === 'uf2') return ['bad', 'this is a UF2 — the bridge wants build/gw_wifi_bridge.bin'];
+  if (im.kind === 'rp') return ['bad', 'this is a controller (RP2354) image — use the CONTROLLER row'];
+  if (im.kind === 'esp-other') return ['bad', 'ESP image without an app header (bootloader or merged image?) — use build/gw_wifi_bridge.bin'];
+  if (im.kind !== 'esp') return ['bad', 'not an ESP32 app image'];
+  if (im.chip !== ESP32S3_CHIP_ID) return ['bad', `built for chip id ${im.chip}, not the ESP32-S3`];
+  if (file.size > ESP_SLOT_MAX) return ['bad', `${fmtSize(file.size)} — bigger than the 4 MB OTA slot`];
+  const desc = `${im.proj} ${im.ver} · built ${im.built} · ${fmtSize(file.size)}`;
+  if (im.proj !== 'gw_wifi_bridge') return ['warn', `${desc} — project is not gw_wifi_bridge`];
+  return ['ok', desc];
+}
+
+function checkRp(file, im) {
+  if (im.kind === 'uf2') return ['bad', 'this is a UF2 — flash the raw build/gw_rp2354.bin'];
+  if (im.kind === 'esp' || im.kind === 'esp-other') return ['bad', 'this is an ESP32 image — use the BRIDGE row'];
+  if (file.size > RP_IMG_MAX) return ['bad', `${fmtSize(file.size)} — over the 512 KB limit`];
+  if (im.kind !== 'rp') return ['warn', `${fmtSize(file.size)} — doesn't look like an RP2350 flash image`];
+  return [im.marker ? 'ok' : 'warn', `RP2350 image · ${fmtSize(file.size)}` + (im.marker ? '' : ' — no IMAGE_DEF block found')];
+}
+
+async function pickFw(which, input) {
+  const file = input.files[0], info = $(which === 'esp' ? '#fwEspInfo' : '#fwRpInfo');
+  fw[which] = null;
+  if (file) {
+    const im = sniff(new Uint8Array(await file.slice(0, 4096).arrayBuffer()));
+    const [level, note] = (which === 'esp' ? checkEsp : checkRp)(file, im);
+    fw[which] = { file, level, note };
+    info.textContent = `${file.name} · ${note}`;
+    info.className = 'fwfile ts ' + level;
+  } else { info.textContent = 'no file chosen'; info.className = 'fwfile ts'; }
+  fwSync();
+}
+$('#fwEspFile').onchange = e => pickFw('esp', e.target);
+$('#fwRpFile').onchange = e => pickFw('rp', e.target);
+
+function fwSync() {
+  const can = w => !fwBusy && !diskBusy && fw[w] && fw[w].level !== 'bad';
+  fwEspGo.disabled = !can('esp'); fwRpGo.disabled = !can('rp');
+  const o = lastOta;
+  const now = $('#fwEspNow');
+  now.textContent = o ? `${o.ver || '?'} · ${o.slot}${o.pending ? ' · UNCONFIRMED' : ''}` : '—';
+  now.title = o && o.built ? 'built ' + o.built : '';
+  now.className = 'fwnow' + (o && o.pending ? ' warn' : '');
+}
+
+const say = (t, cls = '') => { fwMsg.textContent = t; fwMsg.className = 't' + (cls ? ' ' + cls : ''); };
+const bar = f => { fwBar.classList.toggle('hidden', f == null); paintBars(fwCells, Math.round((f || 0) * fwCells.length)); };
+
+// XHR, not fetch, for upload progress.
+function postBin(url, file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('POST', url);
+    x.setRequestHeader('Content-Type', 'application/octet-stream');
+    x.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+    x.onload = () => { let j = null; try { j = JSON.parse(x.responseText); } catch (e) {} resolve({ status: x.status, j, text: x.responseText }); };
+    x.onerror = () => reject(new Error('connection lost during upload'));
+    x.send(file);
+  });
+}
+const failText = r => (r.j && r.j.error) || (r.text || '').replace(/<[^>]*>/g, ' ').trim() || 'HTTP ' + r.status;
+
+// ---- write a whole disk: from a file, or the image in memory (a copy) ----
+const IMG_BYTES = 1474560;
+const imgGo = $('#imgGo'), imgCopy = $('#imgCopy'), imgMsg = $('#imgMsg');
+let imgPick = null;
+function imgSync() {
+  imgGo.disabled = fwBusy || diskBusy || !imgPick;
+  imgCopy.disabled = fwBusy || diskBusy || !loadedState;
+}
+$('#imgFile').onchange = e => {
+  const f = e.target.files[0];
+  imgPick = f && f.size === IMG_BYTES ? f : null;
+  $('#imgInfo').textContent = !f ? 'no file chosen'
+    : imgPick ? `${f.name} · 1.44 MB image`
+    : `${f.name} · ${f.size} bytes — not a 1.44 MB image (${IMG_BYTES} bytes)`;
+  imgSync();
+};
+async function writeDisk(file) {
+  const what = file ? `the image "${file.name}"` : 'the disk image now in memory';
+  if (!confirm(`Write ${what} to the floppy in the drive?\n\nEverything on that floppy is overwritten. It takes a few minutes.`)) return;
+  fwBusy = true; imgSync(); fwSync();
+  try {
+    imgMsg.textContent = file ? 'UPLOADING…' : 'STARTING…';
+    const r = await postBin('/api/image/write' + (file ? '' : '?src=loaded'), file,
+                            f => { imgMsg.textContent = `UPLOADING ${Math.round(f * 100)}%`; });
+    imgMsg.textContent = r.status === 200 && r.j && r.j.ok
+      ? 'WRITING · PROGRESS IS ON THE STATUS LINE, THE RESULT UNDER LAST OP'
+      : 'FAILED ▸ ' + failText(r);
+  } catch (e) { imgMsg.textContent = 'FAILED ▸ ' + e.message; }
+  finally { fwBusy = false; imgSync(); fwSync(); tick(); }
+}
+imgGo.onclick = () => writeDisk(imgPick);
+imgCopy.onclick = () => writeDisk(null);
+
+async function statusOnce() {
+  const ac = new AbortController(), t = setTimeout(() => ac.abort(), 3000);
+  try { return await (await fetch('/api/status', { signal: ac.signal, cache: 'no-store' })).json(); }
+  finally { clearTimeout(t); }
+}
+
+// Wait out the reboot, then for the new image to confirm itself.
+async function awaitNewBridge(oldSlot) {
+  const t0 = Date.now();
+  await new Promise(r => setTimeout(r, 4000));
+  while (Date.now() - t0 < 120000) {
+    let s = null;
+    try { s = await statusOnce(); } catch (e) {}
+    if (s && s.ota) {
+      lastOta = s.ota; fwSync();
+      if (s.ota.slot === oldSlot) return say(`Bridge came back on ${oldSlot} — the new image failed to confirm and was rolled back.`, 'err');
+      if (!s.ota.pending) return say(`Bridge updated: running ${s.ota.ver} on ${s.ota.slot}, confirmed.`, 'ok');
+      say(`Rebooted into ${s.ota.slot} — waiting for the new image to confirm itself…`, 'warn');
+    } else say(`Rebooting… (${Math.round((Date.now() - t0) / 1000)} s)`, 'warn');
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  say('The bridge has not come back after 2 minutes. If it rolled back it will reappear on the old slot; otherwise it needs a USB flash.', 'err');
+}
+
+fwEspGo.onclick = async () => {
+  const f = fw.esp; if (!f) return;
+  if (!confirm(`Update the BRIDGE firmware?\n\n${f.file.name}\n${f.note}\n\nThe bridge reboots into the new image. If it fails to start, it rolls back to the current one.`)) return;
+  const oldSlot = lastOta && lastOta.slot;
+  fwBusy = true; fwSync(); setLed(fwEspGo, 'amb busy');
+  try {
+    say('Uploading to the bridge…'); bar(0);
+    const r = await postBin('/api/ota', f.file, p => { bar(p); say(`Uploading to the bridge… ${Math.round(p * 100)}%`); });
+    bar(null);
+    if (!(r.j && r.j.ok)) return say('Bridge update refused: ' + failText(r), 'err');
+    say('Image written and verified — rebooting…', 'warn');
+    await awaitNewBridge(oldSlot);
+  } catch (e) { bar(null); say('Bridge update failed: ' + e.message, 'err'); }
+  finally { fwBusy = false; setLed(fwEspGo, ''); fwSync(); }
+};
+
+fwRpGo.onclick = async () => {
+  const f = fw.rp; if (!f) return;
+  const addrTxt = $('#fwRpAddr').value.trim(), addr = parseInt(addrTxt, 16);
+  if (!/^0x10[0-9a-f]{6}$/i.test(addrTxt) || addr % 4096) return say('Flash address must be a 4 KB-aligned 0x10xxxxxx value (normally 0x10000000).', 'err');
+  if (!confirm(`Reflash the CONTROLLER (RP2354) over SWD?\n\n${f.file.name}\n${f.note}\nat ${addrTxt}` +
+               (f.level === 'warn' ? '\n\n⚠ The file did not pass every check — flash it anyway?' : ''))) return;
+  fwBusy = true; fwSync(); setLed(fwRpGo, 'amb busy');
+  try {
+    say('Uploading to the bridge…'); bar(0);
+    const r = await postBin('/api/rpflash?addr=' + addrTxt, f.file, p => {
+      bar(p); say(p < 1 ? `Uploading to the bridge… ${Math.round(p * 100)}%` : 'Programming the controller over SWD (erase · write · verify)…');
+    });
+    bar(null);
+    if (!(r.j && r.j.ok)) return say('Controller flash failed: ' + failText(r), 'err');
+    say(`Controller flashed and verified: ${r.j.bytes.toLocaleString()} bytes at ${r.j.addr}. The link re-establishes itself in about 30 s.`, 'ok');
+  } catch (e) { bar(null); say('Controller flash failed: ' + e.message, 'err'); }
+  finally { fwBusy = false; setLed(fwRpGo, ''); fwSync(); }
+};
+
+// The device reports UTC; the browser converts. Between polls it ticks on
+// performance.now(), not the viewer's clock, which may disagree.
+let clockBase = null;   // { epoch: seconds, at: performance.now(), src: string }
+
+function updateClock(t) {
+  if (t && typeof t.epoch === 'number' && t.src && t.src !== 'unset' && t.epoch > 1000000000)
+    clockBase = { epoch: t.epoch, at: performance.now(), src: t.src, rtc: !!t.rtc };
+  else if (t && t.src === 'unset')
+    clockBase = null;
+  renderClock();
+}
+
+function renderClock() {
+  if (!clockBase) {
+    clockBox.classList.add('unset');
+    setSeg('#clockTime', '--:--', 20);
+    clockDate.textContent = 'CLOCK NOT SET';
+    clockBox.title = 'No RTC time and no NTP sync yet — saved files will be dated 1980';
+    return;
+  }
+  const secs = clockBase.epoch + (performance.now() - clockBase.at) / 1000;
+  const d = new Date(secs * 1000);
+  clockBox.classList.remove('unset');
+  setSeg('#clockTime', pad2(d.getHours()) + ':' + pad2(d.getMinutes()), 20);
+  clockDate.textContent = d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' }).toUpperCase();
+  clockBox.title = 'Device clock, set from ' + (clockBase.src === 'rtc' ? 'the on-board RTC' : 'NTP')
+      + (clockBase.rtc ? '' : ' (no RTC fitted)')
+      + ' — ' + d.toISOString().replace('.000', '') + ' shown in your local time';
+}
+
+setInterval(renderClock, 1000);
+
+// ---- battery ----
+// Level and rate from the MAX17048, charge state from the BQ25180. The status
+// row icon and the bar graph animate while charging, as on the device LCD:
+// bolt lit whenever USB is in; bars fill from the level up to full while
+// charging; solid and full once the charger reports done.
+let batt = null, battFrame = 0;
+function battMode(b) {
+  if (!b || !b.usb) return 'battery';
+  if (b.state === 'done') return 'full';
+  return b.chg ? 'charging' : 'usb';
+}
+function drawBatt() {
+  const b = batt, soc = b && b.soc != null ? Math.max(0, Math.min(100, b.soc)) : null;
+  const m = battMode(b);
+  let bars = soc == null ? 0 : Math.min(4, Math.round(soc / 25));
+  if (m === 'full') bars = 4;
+  if (m === 'charging') { const base = Math.min(3, bars); bars = base + battFrame % (5 - base); }
+  $('#battIcon').innerHTML = battSvg(bars);
+  ann('#aChg', m !== 'battery' ? 'on' : '');
+  const n = battCells.length;
+  let lit = soc == null ? 0 : Math.round(soc * n / 100);
+  if (m === 'full') lit = n;
+  if (m === 'charging') lit += battFrame % Math.max(1, n - lit + 1);
+  paintBars(battCells, lit);
+}
+setInterval(() => { battFrame++; if (battMode(batt) === 'charging') drawBatt(); }, 450);
+
+// Caption: charging -> time to full; on USB -> CC/CV/DONE; on battery -> time
+// to empty (or plain "on battery" when the rate is too small).
+function updateBattery(b) {
+  batt = b || null;
+  if (!b) {
+    setSeg('#pwrDig', '--', 46); pwrSub.textContent = 'NO BATTERY'; pwrInfo.innerHTML = '&nbsp;';
+    pwrSub.classList.remove('warn'); drawBatt(); return;
+  }
+  const soc = Math.max(0, Math.min(100, b.soc == null ? 0 : b.soc));
+  setSeg('#pwrDig', b.soc == null ? '--' : String(b.soc).padStart(2, ' '), 46);
+
+  let sub;
+  if (b.chg && b.rate_pph != null && b.rate_pph > 0.1 && b.soc != null) {
+    sub = 'CHARGING · FULL IN ' + fmtHours((100 - b.soc) / b.rate_pph);
+  } else if (b.chg) {
+    sub = 'CHARGING' + (b.state ? ' · ' + b.state.toUpperCase() : '');
+  } else if (b.usb) {
+    sub = b.state === 'done' ? 'CHARGED' : 'ON USB' + (b.state ? ' · ' + b.state.toUpperCase() : '');
+  } else if (b.rate_pph != null && b.rate_pph < -0.1 && b.soc != null) {
+    sub = fmtHours(b.soc / -b.rate_pph) + ' LEFT';
+  } else {
+    sub = 'ON BATTERY';
+  }
+  if (b.thermreg) sub += ' · HOT';
+  // Over-voltage means a charger fault; other alerts are in diagnostics.
+  if (b.over_v) sub += ' · CHARGER FAULT';
+  pwrSub.textContent = sub;
+  pwrSub.classList.toggle('warn', (soc <= 10 && !b.chg) || !!b.over_v);
+  pwrInfo.textContent = [b.mv ? (b.mv / 1000).toFixed(2) + ' V' : '', b.ichg_ma && b.chg ? b.ichg_ma + ' MA' : '',
+                         b.settling ? 'GAUGE SETTLING' : ''].filter(Boolean).join(' · ') || ' ';
+
+  $('#battMeter').title = (b.mv ? (b.mv / 1000).toFixed(3) + ' V' : '')
+    + (b.rate_pph != null ? '  ' + (b.rate_pph > 0 ? '+' : '') + b.rate_pph + ' %/hr' : '')
+    + (b.ichg_ma ? '  charge set to ' + b.ichg_ma + ' mA' : '')
+    + (b.warn_mv ? '  warns below ' + (b.warn_mv / 1000).toFixed(2) + ' V' : '')
+    + (b.athd_pct ? ' / ' + b.athd_pct + '%' : '')
+    + (b.settling ? '  (gauge restarted — percentage still settling)' : '');
+  drawBatt();
+}
+
+function fmtHours(h) {
+  if (!isFinite(h) || h <= 0) return '--';
+  if (h >= 10) return Math.round(h) + 'H';
+  if (h < 1) return Math.max(1, Math.round(h * 60)) + 'M';
+  return Math.floor(h) + 'H ' + Math.round((h % 1) * 60) + 'M';
+}
+
+// Two die temperatures, and a battery JEITA zone (not degrees).
+const DIE_WARN_C = 70;
+
+function tempTiles(t) {
+  if (!t) return [];
+  const out = [];
+  out.push(['ESP die', t.esp_c == null ? '—' : t.esp_c.toFixed(1) + '°C',
+            t.esp_c != null && t.esp_c >= DIE_WARN_C]);
+  // Refreshed only while the gw task idles, so mark it when stale.
+  if (t.rp) {
+    const stale = t.rp.age_ms > 60000;
+    out.push(['RP die', t.rp.c.toFixed(1) + '°C' + (stale ? ' (old)' : ''),
+              t.rp.c >= DIE_WARN_C]);
+  } else {
+    out.push(['RP die', '—', false]);
+  }
+  if (t.batt) {
+    const z = t.batt.ts_open ? 'NO SENSOR' : t.batt.zone.toUpperCase();
+    out.push(['Batt temp', z, t.batt.ts_open || t.batt.zone !== 'normal']);
+  }
+  return out;
+}
+
+// Gauge alerts since boot (sticky: a sag under motor load is brief).
+function alertLabel(b) {
+  const hit = [];
+  if (b.over_v)  hit.push('OVER-V');
+  if (b.low_v)   hit.push('LOW V');
+  if (b.low_soc) hit.push('LOW SOC');
+  if (!hit.length) return null;
+  return hit.join(' · ') + (b.alert_n > 1 ? ' (x' + b.alert_n + ')' : '');
+}
+
+// Rates below 0.1 %/hr are noise and not shown.
+function battTiles(b) {
+  if (!b) return [];
+  const out = [['Charger', (b.state || '—').toUpperCase(), b.thermreg === true]];
+  const al = alertLabel(b);
+  if (al) out.push(['Batt alerts', al, true]);
+  // Charger faults from before this boot: why power was last cut.
+  if (b.boot_flag0 > 0 && (b.boot_flag0 & 3))
+    out.push(['Last cut-out', (b.boot_flag0 & 1) ? 'BATT OVER-CURRENT' : 'BATT UNDER-VOLT', true]);
+  if (b.rate_pph != null && Math.abs(b.rate_pph) >= 0.1 && b.soc != null) {
+    const hrs = b.rate_pph < 0 ? b.soc / -b.rate_pph : (100 - b.soc) / b.rate_pph;
+    const label = b.rate_pph < 0 ? 'Time to empty' : 'Time to full';
+    out.push([label, fmtHours(hrs), false]);
+  }
+  return out;
+}
+
+// Only fault resets are worth flagging (brownout=power, the rest=software).
+// A plain 'other'/'poweron'/'sw' is the healthy steady state, not a warning.
+const BAD_RESETS = ['panic', 'int_wdt', 'task_wdt', 'wdt', 'brownout'];
+function updateDiag(s) {
+  const m = /wall=(\d+)/.exec(s.detail || '');
+  const wall = m ? (+m[1] >= 1000 ? (m[1] / 1000).toFixed(1) + ' s' : m[1] + ' ms') : '—';
+  const tiles = [
+    ['Reset',      s.reset || '—', BAD_RESETS.includes(s.reset)],
+    ['Last dump',  wall,           false],
+    ['Heap free',  fmtSize(s.heap || 0),     false],
+    ['Heap min',   fmtSize(s.heap_min || 0), false],
+    ['PSRAM free', fmtSize(s.psram || 0),    false],
+    ['Clock',      (s.time && s.time.src === 'rtc')  ? 'RTC'
+                 : (s.time && s.time.src === 'sntp') ? 'NTP'
+                 : 'NOT SET',                        !(s.time && s.time.src !== 'unset')],
+    ...tempTiles(s.temps),
+    ...battTiles(s.batt),
+  ];
+  diagStats.innerHTML = '';
+  tiles.forEach(([k, v, warn]) => {
+    const cell = document.createElement('div'); cell.className = 'kvi' + (warn ? ' warn' : '');
+    const kk = document.createElement('span'); kk.textContent = k;
+    const vv = document.createElement('b'); vv.textContent = v;
+    cell.append(kk, vv); diagStats.appendChild(cell);
+  });
+  detailLine.textContent = 'LAST OP ▸ ' + (s.detail || '—');
+}
+
+// LIGHT: day (reflective, as on the device) / night (backlit negative).
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  themeToggle.querySelector('b').textContent = t === 'night' ? '☾' : '☼';
+  try { localStorage.setItem('floppy-lcd-theme', t); } catch (e) {}
+}
+let savedTheme = 'day';
+try { savedTheme = localStorage.getItem('floppy-lcd-theme') || 'day'; } catch (e) {}
+setTheme(savedTheme === 'night' ? 'night' : 'day');
+themeToggle.onclick = () => setTheme(document.documentElement.dataset.theme === 'night' ? 'day' : 'night');
+
+// COLOUR: photos in true colour instead of printed on the LCD.
+function setColour(on) {
+  document.documentElement.classList.toggle('truecolour', on);
+  $('#colKey').classList.toggle('on', on);
+  try { localStorage.setItem('floppy-colour', on ? '1' : '0'); } catch (e) {}
+}
+try { setColour(localStorage.getItem('floppy-colour') === '1'); } catch (e) { setColour(false); }
+$('#colKey').onclick = () => setColour(!document.documentElement.classList.contains('truecolour'));
+
+readBtn.onclick = async () => { await fetch('/api/read', { method: 'POST' }); };
+const retryBtn = $('#retry');
+retryBtn.onclick = async () => { await fetch('/api/retry', { method: 'POST' }); tick(); };
+
+async function zipAll(files) {
+  zipBtn.disabled = true; keyText(zipBtn, 'PACKING…');
+  // No server-side zip endpoint yet — best-effort sequential download.
+  for (const f of files) {
+    const a = document.createElement('a');
+    a.href = '/file?name=' + encodeURIComponent(f.name); a.download = f.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    await new Promise(r => setTimeout(r, 300));
+  }
+  zipBtn.disabled = false; keyText(zipBtn, LBL.zip);
+}
+let currentFiles = [];
+zipBtn.onclick = () => zipAll(currentFiles);
+
+// ---- SD card: status + list/gallery ----
+let lastSD = '', sdPresent = false;
+let sdView = 'list';   // 'list' = browsable folders+files, 'gallery' = photos
+let sdPath = '';       // current folder in list view ('' = card root)
+const mb = b => Math.round((b || 0) / 1048576);
+const sdUrl = p => '/sdfile?path=' + encodeURIComponent(p);
+
+async function fetchSD(path) {
+  const q = path ? '/api/sd?path=' + encodeURIComponent(path) : '/api/sd';
+  return (await fetch(q)).text();
+}
+
+async function refreshSD() {
+  try {
+    const raw = await fetchSD(sdPath);
+    // Re-render only on change. The gallery (one request per folder) only
+    // re-renders on demand.
+    if (raw === lastSD) return;
+    lastSD = raw;
+    const sd = JSON.parse(raw);
+    sdPresent = !!sd.present;
+    updateSDMeter(sd);
+    if (sdView === 'gallery') renderSDGallery(sd);
+    else renderSD(sd);
+  } catch (e) { /* offline: keep last rendered state */ }
+}
+
+function updateSDMeter(sd) {
+  ann('#aSd', sd.present ? 'on' : '');
+  if (!sd.present || !sd.total) {
+    setSeg('#sdDig', '--', 46); paintBars(sdCells, 0);
+    $('#sdUse').textContent = 'NO CARD'; $('#sdUseSub').innerHTML = '&nbsp;'; return;
+  }
+  const used = sd.total - sd.free, pct = Math.round(used * 100 / sd.total);
+  setSeg('#sdDig', String(pct).padStart(2, ' '), 46);
+  paintBars(sdCells, Math.round(used * sdCells.length / sd.total));
+  $('#sdUse').textContent = `${(used / 1073741824).toFixed(1)} / ${(sd.total / 1073741824).toFixed(1)} GB`;
+  $('#sdUseSub').textContent = `${(sd.free / 1073741824).toFixed(1)} GB FREE`;
+}
+
+// Shared chrome: header info, the empty/hidden state.
+function sdChrome(sd, emptyMsg) {
+  if (!sd.present) {
+    sdInfo.textContent = 'NO CARD';
+    sdGrid.classList.add('hidden'); sdGrid.innerHTML = '';
+    sdGallery.classList.add('hidden'); sdGallery.innerHTML = '';
+    sdCrumb.classList.add('hidden');
+    sdEmpty.classList.remove('hidden'); sdEmpty.textContent = 'NO SD CARD DETECTED';
+    return false;
+  }
+  sdInfo.textContent = `${(sd.free / 1073741824).toFixed(1)} / ${(sd.total / 1073741824).toFixed(1)} GB`;
+  sdInfo.title = `${mb(sd.free).toLocaleString()} / ${mb(sd.total).toLocaleString()} MB`;
+  if (emptyMsg) {
+    sdGrid.classList.add('hidden'); sdGallery.classList.add('hidden');
+    sdEmpty.classList.remove('hidden'); sdEmpty.textContent = emptyMsg;
+    return false;
+  }
+  sdEmpty.classList.add('hidden');
+  return true;
+}
+
+// List view: folders (DISKnnnn) first, then files.
+function renderSD(sd) {
+  sdGrid.innerHTML = '';
+  if (sdPath) {
+    sdCrumb.classList.remove('hidden');
+    sdCrumb.textContent = `◀ SD / ${sdPath}`;
+  } else {
+    sdCrumb.classList.add('hidden');
+  }
+  const files = sd.files || [];
+  if (!sdChrome(sd, files.length ? '' : (sdPath ? 'FOLDER IS EMPTY' : 'SD CARD IS EMPTY')))
+    return;
+
+  const dirs = files.filter(f => f.dir).sort((a, b) => a.name.localeCompare(b.name));
+  const plain = files.filter(f => !f.dir).sort((a, b) => a.name.localeCompare(b.name));
+  const rel = f => sdPath ? `${sdPath}/${f.name}` : f.name;
+
+  const list = document.createElement('div'); list.className = 'files';
+  for (const f of [...dirs, ...plain]) {
+    const row = document.createElement('div');
+    row.className = 'sd-row' + (f.dir ? ' dir' : IMG_RE.test(f.name) ? ' img' : '');
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = f.dir ? `▸ ${f.name}` : f.name;
+    const sz = document.createElement('span'); sz.className = 'sz'; sz.textContent = f.dir ? 'OPEN' : fmtSize(f.size || 0);
+    row.append(nm, sz);
+    if (f.dir) row.addEventListener('click', () => sdGoto(rel(f)));
+    else if (IMG_RE.test(f.name)) row.addEventListener('click', () => openLightbox(sdUrl(rel(f))));
+    list.appendChild(row);
+  }
+  sdGrid.appendChild(list);
+  sdGallery.classList.add('hidden');
+  sdGrid.classList.remove('hidden');
+}
+
+// Gallery: every photo, grouped by folder. Thumbnails are the full JPEGs,
+// lazy-loaded.
+async function renderSDGallery(rootSd) {
+  if (!sdChrome(rootSd, '')) return;
+  sdCrumb.classList.add('hidden');
+  sdGrid.classList.add('hidden');
+  sdGallery.innerHTML = '';
+  sdGallery.classList.remove('hidden');
+
+  const entries = rootSd.files || [];
+  const dirs = entries.filter(f => f.dir).map(f => f.name).sort();
+  const rootImgs = entries.filter(f => !f.dir && IMG_RE.test(f.name))
+                          .sort((a, b) => a.name.localeCompare(b.name));
+
+  let total = 0;
+  const addGroup = (label, prefix, files) => {
+    if (!files.length) return;
+    total += files.length;
+    const wrap = document.createElement('div');
+    const head = document.createElement('div'); head.className = 'sd-group-head';
+    const t = document.createElement('span'); t.textContent = label;
+    const c = document.createElement('span'); c.className = 'cnt';
+    c.textContent = `${files.length} PHOTO${files.length === 1 ? '' : 'S'}`;
+    head.append(t, c);
+    const g = document.createElement('div'); g.className = 'sd-grid';
+    for (const f of files) {
+      const rel = prefix ? `${prefix}/${f.name}` : f.name;
+      const url = sdUrl(rel);
+      const tile = document.createElement('div'); tile.className = 'sd-tile';
+      const p = document.createElement('div'); p.className = 'p';
+      const img = document.createElement('img');
+      img.loading = 'lazy'; img.decoding = 'async'; img.alt = f.name; img.src = url;
+      img.addEventListener('click', () => openLightbox(url));
+      p.appendChild(img);
+      const cap = document.createElement('div'); cap.className = 'cap ts';
+      cap.textContent = f.name;
+      tile.append(p, cap);
+      g.appendChild(tile);
+    }
+    wrap.append(head, g);
+    sdGallery.appendChild(wrap);
+  };
+
+  addGroup('SD ROOT', '', rootImgs);
+
+  // Render each folder as its listing arrives.
+  for (const d of dirs) {
+    if (sdView !== 'gallery') return;   // user flipped back mid-walk
+    try {
+      const sub = JSON.parse(await fetchSD(d));
+      const imgs = (sub.files || []).filter(f => !f.dir && IMG_RE.test(f.name))
+                                    .sort((a, b) => a.name.localeCompare(b.name));
+      addGroup(d, d, imgs);
+    } catch (e) { /* skip an unreadable folder rather than abort the gallery */ }
+  }
+
+  if (!total) {
+    sdGallery.classList.add('hidden');
+    sdEmpty.classList.remove('hidden');
+    sdEmpty.textContent = 'NO PHOTOS ON THE SD CARD';
+  }
+}
+
+// Navigate the list view into a folder (or back to the card root).
+function sdGoto(path) {
+  sdPath = path;
+  lastSD = '';        // force the next poll to re-render
+  refreshSD();
+}
+sdCrumb.onclick = () => sdGoto('');
+
+sdToggle.addEventListener('click', async e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  sdView = btn.dataset.view;
+  [...sdToggle.children].forEach(b => b.classList.toggle('on', b === btn));
+  sdPath = '';        // both views start at the card root
+  lastSD = '';
+  await refreshSD();
+});
+
+async function saveAllToSD() {
+  sdSave.disabled = true; keyText(sdSave, 'SAVING…');
+  try {
+    const r = await (await fetch('/api/sd/save-all', { method: 'POST' })).json();
+    if (r.duplicate) {
+      if (confirm(`This disk is already saved as ${r.dir}.\n\nSave a second copy anyway?`)) {
+        const f = await (await fetch('/api/sd/save-all?force=1', { method: 'POST' })).json();
+        alert(f.error ? `Save failed: ${f.error}`
+                      : `Saved ${f.ok} file(s) to ${f.dir}` + (f.fail ? `, ${f.fail} failed` : ''));
+      }
+    } else if (r.error) {
+      alert(`Save failed: ${r.error}`);
+    } else {
+      let msg = `Saved ${r.ok} file(s) to ${r.dir}`;
+      if (r.skipped) msg += `\n${r.skipped} already on the card were skipped.`;
+      if (r.fail) msg += `\n${r.fail} failed.`;
+      alert(msg);
+    }
+  } catch (e) { alert('Save failed: ' + e); }
+  keyText(sdSave, LBL.save);
+  lastSD = ''; refreshSD(); tick();
+}
+sdSave.onclick = saveAllToSD;
+
+async function saveSelectedToSD() {
+  const names = [...selected];
+  if (!names.length) { alert('Select one or more files first: tick the box under a frame, or use the SELECT key.'); return; }
+  sdSaveSel.disabled = true; keyText(sdSaveSel, 'COPYING…');
+  let ok = 0, fail = 0;
+  for (const name of names) {
+    try {
+      const r = await (await fetch('/api/sd/save?name=' + encodeURIComponent(name), { method: 'POST' })).json();
+      r.ok ? ok++ : fail++;
+    } catch (e) { fail++; }
+  }
+  alert(`Copied ${ok} file(s) to SD` + (fail ? `, ${fail} failed` : ''));
+  keyText(sdSaveSel, LBL.copy);
+  lastSD = ''; refreshSD(); tick();
+}
+sdSaveSel.onclick = saveSelectedToSD;
+
+// Delete a file from the floppy (removes it from the image and rewrites cyl0).
+async function onDelete(name) {
+  if (!confirm('Delete "' + name + '" from the floppy?')) return;
+  try {
+    const r = await fetch('/api/delete?name=' + encodeURIComponent(name), { method: 'POST' });
+    if (!r.ok) { alert('Delete failed (' + r.status + ')'); return; }
+    selected.delete(name);
+    lastList = '';   // force the viewer to re-render from the fresh listing
+    tick();
+  } catch (e) { alert('Delete failed: ' + e); }
+}
+
+// ---- disk contents: one file at a time on the screen, all on the strip ----
+let cur = 0;                      // index into currentFiles shown on the screen
+const selected = new Set();       // names ticked for COPY SEL
+const fileUrl = n => '/file?name=' + encodeURIComponent(n);
+
+function showTube() {
+  tube.innerHTML = '';
+  const tag = $('#vTag');
+  if (!currentFiles.length) {
+    const m = document.createElement('div'); m.className = 'msg';
+    m.textContent = { reading: 'READING DISK…', error: 'READ ERROR — CHECK THE DISK AND PRESS READ',
+                      ready: 'DISK IS EMPTY', dirty: 'NO READABLE FILES' }[diskState] || 'INSERT A DISK AND PRESS READ';
+    tube.appendChild(m);
+    setSeg('#vIdx', '--', 30); $('#vTot').textContent = ''; $('#vSize').textContent = '';
+    $('#vName').textContent = 'NO DISK'; tag.textContent = ''; tag.className = 't';
+    $('#monInfo').innerHTML = '&nbsp;';
+    updateMonKeys();
+    return;
+  }
+  cur = Math.max(0, Math.min(cur, currentFiles.length - 1));
+  const f = currentFiles[cur], url = fileUrl(f.name);
+  if (IMG_RE.test(f.name)) {
+    const img = document.createElement('img'); img.src = url; img.alt = f.name;
+    img.addEventListener('click', () => openLightbox(url));
+    tube.appendChild(img);
+  } else {
+    const e = document.createElement('div'); e.className = 'ext'; e.textContent = extOf(f.name);
+    tube.appendChild(e);
+  }
+  setSeg('#vIdx', pad2(cur + 1), 30);
+  $('#vTot').textContent = '/ ' + pad2(currentFiles.length);
+  $('#vSize').textContent = fmtSize(f.size || 0);
+  $('#vName').textContent = f.name; $('#vName').title = f.name;
+  if (f.dirty) { tag.textContent = '▲ ' + (f.badCount ? f.badCount + ' BAD SEC' : 'BAD SECTORS'); tag.className = 't inv'; }
+  else { tag.textContent = IMG_RE.test(f.name) ? '▶ VIEW' : ''; tag.className = 't dim'; }
+  grid.querySelectorAll('.fr').forEach((fr, i) => fr.classList.toggle('cur', i === cur));
+  const frame = grid.children[cur];
+  if (frame) frame.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  updateMonKeys();
+}
+function step(d) { if (currentFiles.length) { cur = (cur + d + currentFiles.length) % currentFiles.length; showTube(); } }
+$('#prevKey').onclick = () => step(-1);
+$('#nextKey').onclick = () => step(1);
+
+function toggleSelect(name, on) {
+  if (on) selected.add(name); else selected.delete(name);
+  const box = grid.querySelector(`.boxchk[data-name="${CSS.escape(name)}"]`);
+  if (box) box.checked = on;
+  updateMonKeys();
+}
+$('#selKey').onclick = () => { const f = currentFiles[cur]; if (f) toggleSelect(f.name, !selected.has(f.name)); };
+$('#dlKey').onclick = () => {
+  const f = currentFiles[cur]; if (!f) return;
+  const a = document.createElement('a'); a.href = fileUrl(f.name); a.download = f.name;
+  document.body.appendChild(a); a.click(); a.remove();
+};
+$('#delKey').onclick = () => { const f = currentFiles[cur]; if (f) onDelete(f.name); };
+
+function updateMonKeys() {
+  const f = currentFiles[cur], has = !!f;
+  ['#prevKey', '#nextKey', '#selKey', '#dlKey', '#delKey'].forEach(id => { $(id).disabled = !has; });
+  $('#selKey').classList.toggle('on', has && selected.has(f.name));
+  $('#selCount').textContent = `${selected.size} / ${currentFiles.length}`;
+  sdSaveSel.disabled = !(loadedState && sdPresent) || !keyIs(sdSaveSel, LBL.copy);
+  setLed(sdSaveSel, selected.size && !sdSaveSel.disabled ? 'amb' : '');
+}
+
+let loadedState = false, diskState = 'empty';
+function render(files) {
+  const prevName = currentFiles[cur] && currentFiles[cur].name;
+  currentFiles = files;
+  // Keep only selections that still exist on the disk.
+  for (const n of [...selected]) if (!files.some(f => f.name === n)) selected.delete(n);
+  grid.innerHTML = '';
+  files.forEach((f, i) => {
+    const fr = document.createElement('div'); fr.className = 'fr';
+    const t = document.createElement('div'); t.className = 't';
+    if (IMG_RE.test(f.name)) {
+      const img = document.createElement('img'); img.loading = 'lazy'; img.src = fileUrl(f.name); img.alt = '';
+      t.appendChild(img);
+    } else {
+      t.textContent = extOf(f.name);   // non-image: extension, no full-file fetch
+    }
+    const n = document.createElement('div'); n.className = 'n ts';
+    const num = document.createElement('span'); num.textContent = pad2(i + 1);
+    n.appendChild(num);
+    if (f.dirty) { const b = document.createElement('span'); b.className = 'inv'; b.textContent = 'BAD'; n.appendChild(b); }
+    // Select-for-copy box (used by COPY SEL -> /api/sd/save).
+    const sel = document.createElement('input'); sel.type = 'checkbox'; sel.className = 'boxchk'; sel.dataset.name = f.name;
+    sel.checked = selected.has(f.name); sel.title = 'Select ' + f.name + ' for copy to SD';
+    sel.addEventListener('click', e => { e.stopPropagation(); toggleSelect(f.name, sel.checked); });
+    n.appendChild(sel);
+    fr.append(t, n);
+    fr.title = f.name;
+    fr.addEventListener('click', () => { cur = i; showTube(); });
+    grid.appendChild(fr);
+  });
+  const idx = files.findIndex(f => f.name === prevName);
+  cur = idx >= 0 ? idx : 0;
+  const bytes = files.reduce((a, f) => a + (f.size || 0), 0);
+  $('#monInfo').textContent = `${files.length} FILE${files.length === 1 ? '' : 'S'} · ${fmtSize(bytes)}`;
+  showTube();
+}
+
+// ---- the main poll ----
+const STATE_TXT = {
+  empty:   ['NO DISK',   'INSERT DISK',    'INSERT A DISK, THEN PRESS READ'],
+  ready:   ['ALL CLEAN', 'NO BAD SECTORS', 'SAVE TO SD TO ARCHIVE THIS DISK'],
+};
+let lastList = '', readStart = null, lastWallMs = null;
+async function tick() {
+  // Polls would pile up behind a firmware upload.
+  if (fwBusy) return;
+  try {
+    const s = await (await fetch('/api/status')).json();
+    const reading = s.state === 'reading';
+    const loaded = s.state === 'ready' || s.state === 'dirty';
+    diskBusy = reading; lastOta = s.ota || null; fwSync(); imgSync();
+    retryBtn.disabled = s.state !== 'dirty';
+    snCur = s.serial || null; rtcOk = !!(s.time && s.time.rtc); snSync();
+    readBtn.disabled = reading;
+    setLed(readBtn, reading ? 'amb busy' : '');
+    updateClock(s.time);
+    updateBattery(s.batt);
+    updateDiag(s);
+    // Track map: live during a read, and the final map once ready. Empty = clear.
+    if (s.state === 'empty') { paintDiskMap('0'.repeat(NCYL * NHEAD)); }
+    else { try { paintDiskMap((await (await fetch('/api/trackmap')).json()).map); } catch (e) {} }
+    // Prefer the device-reported bound IP; fall back to however we reached it.
+    const host = (s.ip && s.ip !== '0.0.0.0') ? s.ip : location.hostname;
+    subtitle.textContent = host === location.hostname ? host : `${location.hostname} · ${host}`;
+    $('#foot').textContent = 'gw-wifi · ' + location.hostname + (s.serial ? ' · s/n ' + s.serial : '');
+
+    // Status row icons.
+    ann('#aWifi', 'on');
+    ann('#aRead', reading ? 'on' : '');
+    ann('#aDisk', loaded ? 'on' : '');
+    ann('#aBad', s.state === 'dirty' ? 'on' : s.state === 'error' ? 'red' : '',
+        s.state === 'dirty' ? `${s.bad} BAD` : s.state === 'error' ? 'ERR' : '');
+
+    // Status line: badge + text + hint, like the device's result screen.
+    const pct = s.total ? Math.min(99, Math.floor(s.done * 100 / s.total)) : 0;
+    let badge, text, hint;
+    // "reading" also covers a retry of the bad tracks and a disk write (s.op).
+    if (reading)                 { badge = `${pad2(pct)}%`;
+                                   text = s.op === 'write' ? 'WRITING' : s.op === 'retry' ? 'RETRYING BAD TRACKS' : 'READING';
+                                   hint = s.op === 'write' ? 'KEEP THE DISK IN · EVERY TRACK IS READ BACK' : 'KEEP THE DISK IN'; }
+    else if (s.state === 'dirty') { badge = 'PARTIAL'; text = `${s.bad} BAD SECTOR${s.bad === 1 ? '' : 'S'}`; hint = 'RETRY BAD RE-READS ONLY THE BAD TRACKS · SAVE TO SD TO ARCHIVE'; }
+    else if (s.state === 'error') { badge = 'ERROR'; text = /^write/.test(s.detail || '') ? 'WRITE FAILED' : 'READ FAILED'; hint = s.detail || 'CHECK THE DISK IS SEATED, THEN PRESS READ'; }
+    else if (STATE_TXT[s.state])  { [badge, text, hint] = STATE_TXT[s.state]; }
+    else                          { badge = String(s.state).toUpperCase(); text = ''; hint = ''; }
+    if (s.queued && s.queued.length) hint = 'QUEUED ▸ ' + s.queued.join(', ').toUpperCase() + (hint ? ' · ' + hint : '');
+    $('#stBadge').textContent = badge;
+    $('#stBadge').classList.toggle('blink', s.state === 'error');
+    statusEl.textContent = text;
+    if (reading) { const c = document.createElement('span'); c.id = 'cursor'; c.textContent = '_'; statusEl.appendChild(c); }
+    $('#stHint').textContent = hint || ' ';
+    paintBars(rampCells, s.state === 'empty' ? 0 : Math.round((s.done / (s.total || 1)) * rampCells.length));
+
+    // TIME runs locally while reading, then shows the device's figure.
+    if (reading) { if (readStart == null) readStart = performance.now(); } else readStart = null;
+    const wm = /wall=(\d+)/.exec(s.detail || '');
+    if (wm) lastWallMs = +wm[1];
+    const tMs = reading ? performance.now() - readStart : (s.state === 'empty' ? null : lastWallMs);
+    setSeg('#cTime', tMs == null ? '-:--' : `${Math.floor(tMs / 60000)}:${pad2(Math.floor(tMs / 1000) % 60)}`, 58);
+    setSeg('#cBad', s.state === 'empty' || reading ? '--' : String(s.bad).padStart(2, ' '), 58);
+    sectorLine.textContent = `${s.done}/${s.total} SEC`;
+
+    await refreshSD();
+    loadedState = loaded;
+    const stateChanged = s.state !== diskState;
+    diskState = s.state;
+    if (loaded) {
+      const listRaw = await (await fetch('/api/list')).text();
+      if (listRaw !== lastList) { lastList = listRaw; render(JSON.parse(listRaw)); }
+      gridWrap.classList.toggle('hidden', !currentFiles.length);
+    } else {
+      gridWrap.classList.add('hidden');
+      if (!reading && (currentFiles.length || lastList)) { grid.innerHTML = ''; lastList = ''; currentFiles = []; selected.clear(); showTube(); }
+    }
+    if (stateChanged && !currentFiles.length) showTube();
+    setSeg('#cFiles', loaded ? pad2(currentFiles.length) : '--', 58);
+    zipBtn.disabled = !(loaded && currentFiles.length) || !keyIs(zipBtn, LBL.zip);
+    // SD copy controls only make sense with a card in AND a disk image loaded.
+    sdSave.disabled = !(loaded && sdPresent) || !keyIs(sdSave, LBL.save);
+    updateMonKeys();
+  } catch (e) {
+    $('#stBadge').textContent = 'OFFLINE'; $('#stBadge').classList.add('blink');
+    statusEl.textContent = 'NO BRIDGE';
+    $('#stHint').textContent = 'CANNOT REACH THE BRIDGE — CHECK IT IS ON AND ON THIS NETWORK';
+    ann('#aWifi', 'red');
+  }
+}
+
+setSeg('#cFiles', '--', 58); setSeg('#cBad', '--', 58); setSeg('#cTime', '-:--', 58);
+setSeg('#pwrDig', '--', 46); setSeg('#sdDig', '--', 46);
+renderClock(); drawBatt(); showTube();
+setInterval(tick, 1000); tick();
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+# Target: ESP32-S3-WROOM-1-N16R8 on the gw-esp32 PCB (same module/flash/PSRAM
+# settings as ../esp32, minus everything the bring-up does not need).
+
+# --- Flash ---
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# --- PSRAM (octal, N16R8) ---
+# IGNORE_NOTFOUND is the important one for a bring-up build: a module with a
+# bad PSRAM must still BOOT so the firmware can report "PSRAM: FAIL" instead
+# of the bootloader aborting before any test has run.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_SPIRAM_USE_MALLOC=y
+CONFIG_SPIRAM_IGNORE_NOTFOUND=y
+
+# --- Console on BOTH ports ---
+# Primary = UART0 (GPIO43/44 -> J3 header, 115200 8N1); secondary = the native
+# USB-Serial/JTAG (GPIO19/20 -> J8). Whichever the assembler has plugged in
+# shows the same log, and seeing it on both is itself the test of those pins.
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y
+
+# --- Watchdogs ---
+# The tests run sequentially in the main task and bit-bang SWD with interrupts
+# on; the task WDT would only add noise, so it is off for this build.
+CONFIG_ESP_TASK_WDT_INIT=n
+
+CONFIG_FREERTOS_HZ=1000
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_LWIP_LOCAL_HOSTNAME="floppy-bringup"

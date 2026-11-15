@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Floppy Bridge · Wi-Fi setup</title>
+<style>
+@font-face { font-family: 'LCD8'; font-display: block;
+  src: url(data:font/ttf;base64,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BXUwMDNEBXUwMDNFBXUwMDNGBXUwMDQwBXUwMDQxBXUwMDQyBXUwMDQzBXUwMDQ0BXUwMDQ1BXUwMDQ2BXUwMDQ3BXUwMDQ4BXUwMDQ5BXUwMDRBBXUwMDRCBXUwMDRDBXUwMDREBXUwMDRFBXUwMDRGBXUwMDUwBXUwMDUxBXUwMDUyBXUwMDUzBXUwMDU0BXUwMDU1BXUwMDU2BXUwMDU3BXUwMDU4BXUwMDU5BXUwMDVBBXUwMDVCBXUwMDVDBXUwMDVEBXUwMDVFBXUwMDVGBXUwMDYwBXUwMDYxBXUwMDYyBXUwMDYzBXUwMDY0BXUwMDY1BXUwMDY2BXUwMDY3BXUwMDY4BXUwMDY5BXUwMDZBBXUwMDZCBXUwMDZDBXUwMDZEBXUwMDZFBXUwMDZGBXUwMDcwBXUwMDcxBXUwMDcyBXUwMDczBXUwMDc0BXUwMDc1BXUwMDc2BXUwMDc3BXUwMDc4BXUwMDc5BXUwMDdBBXUwMDdCBXUwMDdDBXUwMDdEBXUwMDdFBXUwMEIwBXUwMEI3BXUyMDE0BXUyMDI2BXUyMTkyBXUyNUIyBXUyNUI2BXUyNUI4BXUyNUJDBXUyNUJFBXUyNUMwBXUyNkEw) format('truetype'); }
+  /* Setup portal in the Walkman LCD skin (see index.html). Served from the
+     SoftAP with no internet behind it, so nothing external: the LCD8 font is
+     embedded. The form posts plainly to /save and the script only enhances
+     it, so a captive-portal mini-browser that runs no JS can still set the
+     network. */
+  :root {
+    --shell: #c9cbc6; --shell-hi: #dadcd7; --shell-lo: #a9aba6;
+    --print: #2b2d2c; --print-dim: #6a6d69;
+    --bezel: #1c1d1f;
+    --lcd: #b7bfa3; --ink: #1e2519; --dim: #55604a; --ghost: #a9b197;
+    --key: #3a3c3f; --key-hi: #4c4f53; --key-txt: #e6e7e3;
+    --accent: #d4492c; --amb: #e8a33a;
+    --body: #e4e3dd;
+    --sans: 'Arial Narrow', 'Roboto Condensed', 'Helvetica Neue', Arial, sans-serif;
+    --lcdf: 'LCD8', ui-monospace, 'Consolas', monospace;
+    color-scheme: light;
+  }
+  :root[data-theme="night"] {
+    --shell: #2c2e31; --shell-hi: #393c40; --shell-lo: #1f2023;
+    --print: #d8dad5; --print-dim: #8b8f8a;
+    --bezel: #0b0c0d;
+    --lcd: #121a12; --ink: #b9f08a; --dim: #6f9a52; --ghost: #1f2b1d;
+    --key: #17181a; --key-hi: #232528; --key-txt: #d8dad5;
+    --body: #17181a;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--body); color: var(--print);
+    font: 700 13px/1.3 var(--sans); font-stretch: condensed; letter-spacing: .08em; }
+  button { font-family: inherit; cursor: pointer; } button:disabled { cursor: default; }
+  .hidden { display: none !important; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 24px 16px 40px; }
+
+  .shell { background: linear-gradient(180deg, var(--shell-hi), var(--shell) 18%, var(--shell) 82%, var(--shell-lo));
+    border-radius: 22px; padding: 22px 26px 26px; margin-bottom: 18px;
+    box-shadow: 0 1px 0 rgba(255,255,255,.5) inset, 0 -2px 0 rgba(0,0,0,.12) inset, 0 6px 18px rgba(0,0,0,.18); }
+  .legend { display: flex; align-items: center; gap: 14px; text-transform: uppercase; margin: 0 4px 12px; flex-wrap: wrap; }
+  .legend .name { font-size: 15px; letter-spacing: .28em; }
+  .legend .model { font-style: italic; color: var(--print-dim); letter-spacing: .18em; }
+  .legend .r { margin-left: auto; }
+
+  .lcd { background: var(--bezel); border-radius: 10px; padding: 10px; }
+  .field { background: var(--lcd); border-radius: 3px; padding: 12px 14px; position: relative; overflow: hidden;
+    color: var(--ink); font: 400 16px/1 var(--lcdf); letter-spacing: 0; text-transform: uppercase;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.25); }
+  .field::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .06;
+    background: repeating-linear-gradient(0deg, #000 0 1px, transparent 1px 3px),
+                repeating-linear-gradient(90deg, #000 0 1px, transparent 1px 3px); }
+  :root[data-theme="night"] .field { box-shadow: inset 0 0 30px rgba(140,220,90,.08); }
+  .ts { font-size: 16px; color: var(--dim); }
+  .t  { font-size: 24px; }
+  .tl { font-size: 32px; }
+
+  /* Printed annunciator words: ghost until lit. */
+  .anns { display: flex; gap: 14px; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1px solid var(--ghost); }
+  .ann { color: var(--ghost); }
+  .ann.on { color: var(--ink); }
+  .ann.amb { color: var(--ink); animation: blink .8s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: .15; } }
+
+  /* Rubber keys: glyph on the cap, name printed underneath. */
+  .keys { display: flex; flex-wrap: wrap; gap: 14px 12px; margin-top: 18px; }
+  .key { appearance: none; border: 0; background: none; padding: 0; display: inline-flex; flex-direction: column;
+    align-items: center; gap: 6px; color: var(--print); font: inherit; text-transform: uppercase; letter-spacing: .14em; white-space: nowrap; }
+  .key > i { display: block; width: 74px; height: 30px; border-radius: 15px; position: relative; font-style: normal;
+    background: linear-gradient(180deg, var(--key-hi), var(--key));
+    box-shadow: 0 2px 0 rgba(0,0,0,.35), 0 1px 0 rgba(255,255,255,.12) inset; transition: transform .05s; }
+  .key:active:not(:disabled) > i { transform: translateY(2px); box-shadow: none; }
+  .key > i > b { position: absolute; inset: 0; display: grid; place-items: center; color: var(--key-txt); font-size: 13px; letter-spacing: 0; }
+  .key:disabled { opacity: .45; }
+  .key.sm > i { width: 52px; }
+  .led { position: absolute; top: 5px; right: 9px; width: 5px; height: 5px; border-radius: 50%; background: transparent; }
+  .led.amb { background: var(--amb); box-shadow: 0 0 5px var(--amb); }
+  .led.grn { background: #6fd36a; box-shadow: 0 0 5px #6fd36a; }
+  .led.busy { animation: blink .8s steps(1) infinite; }
+
+  /* ---- tuner: status + the networks the bridge can hear ---- */
+  #msg { margin-top: 12px; font-size: 32px; min-height: 1em; word-break: break-word; }
+  #msg.err { background: var(--ink); color: var(--lcd); padding: 2px 6px 0; display: inline-block; font-size: 24px; }
+  #sub { margin-top: 8px; color: var(--dim); line-height: 1.3; text-transform: none; }
+  #sub b { color: var(--ink); font-weight: 400; }
+  .stations { margin-top: 12px; max-height: 300px; overflow-y: auto; scrollbar-color: var(--dim) var(--lcd); }
+  .st { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto auto; align-items: center; gap: 10px;
+        width: 100%; padding: 6px 4px; background: none; border: 0; border-bottom: 1px dashed var(--ghost);
+        color: var(--ink); font: 400 24px var(--lcdf); text-align: left; text-transform: none; cursor: pointer; }
+  .st:last-child { border-bottom: 0; }
+  .st:hover, .st.sel { background: var(--ink); color: var(--lcd); }
+  .st:hover .pre, .st:hover .ch, .st.sel .pre, .st.sel .ch { color: var(--lcd); }
+  .st .pre, .st .ch { font-size: 16px; color: var(--dim); }
+  .st .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .st .lock { font-size: 16px; margin-left: 8px; }
+  .bars { display: flex; gap: 2px; align-items: flex-end; height: 16px; }
+  .bars i { width: 5px; background: var(--ghost); }
+  .bars i:nth-child(1) { height: 25%; } .bars i:nth-child(2) { height: 50%; } .bars i:nth-child(3) { height: 75%; } .bars i:nth-child(4) { height: 100%; }
+  .bars i.on { background: currentColor; }
+  .st:hover .bars i:not(.on), .st.sel .bars i:not(.on) { background: var(--dim); }
+  .empty { padding: 10px 4px; color: var(--dim); font-size: 24px; }
+
+  /* ---- entry: network name / password ---- */
+  .entry { display: block; margin-top: 4px; }
+  .entry + .entry { margin-top: 16px; }
+  .entry .ts { display: block; margin-bottom: 6px; }
+  .inrow { display: flex; gap: 12px; align-items: flex-end; }
+  .inrow input { flex: 1; min-width: 0; }
+  .lcdinput { font: 400 24px var(--lcdf); background: transparent; border: 0; border-bottom: 2px solid var(--ink); color: var(--ink);
+    width: 100%; outline: none; padding: 2px 0; }
+  .lcdinput::placeholder { color: var(--ghost); text-transform: uppercase; }
+  .lcdinput:focus { border-bottom-width: 3px; }
+  .reveal { appearance: none; border: 0; background: none; padding: 0; color: var(--ink); font: 400 16px var(--lcdf); text-transform: uppercase; cursor: pointer; }
+  .savekey > i { width: 120px; }
+  .plate { margin-top: 16px; color: var(--print-dim); letter-spacing: .12em; font-weight: 400; text-transform: uppercase; }
+  .plate b { color: var(--print); }
+  .foot { text-align: center; color: var(--print-dim); margin-top: 6px; letter-spacing: .2em; font-weight: 400; text-transform: uppercase; }
+
+  @media (max-width: 640px) {
+    .wrap { padding: 12px 10px 30px; }
+    .shell { padding: 16px 14px 18px; border-radius: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 1 · tuner: status + the networks the bridge can hear -->
+  <section class="shell">
+    <div class="legend"><span class="name">WI-FI SETUP</span><span class="model">GW-WIFI</span>
+      <span class="r"><button class="key sm" id="themeToggle" type="button" title="Day (reflective) / night (backlit)"><i><b>&#9788;</b></i><span>LIGHT</span></button></span></div>
+    <div class="lcd"><div class="field">
+      <div class="anns ts"><span class="ann amb" id="aSetup">SETUP</span><span class="ann" id="aScan">SCAN</span><span class="ann" id="aSel">TUNED</span><span class="ann" id="aSave">SAVED</span></div>
+      <div id="msg">PICK YOUR NETWORK</div>
+      <div class="ts" id="sub">Choose a network below or type its name. The bridge reboots, joins it,
+        and then appears at <b id="host">floppy.local</b>.</div>
+      <div class="stations" id="stations"><div class="empty">SCANNING…</div></div>
+    </div></div>
+    <div class="keys">
+      <button class="key" id="scan" type="button"><i><b>&#8635;</b><span class="led"></span></i><span>SCAN AGAIN</span></button>
+    </div>
+  </section>
+
+  <!-- 2 · entry: works as a plain form with no script at all -->
+  <section class="shell">
+    <div class="legend"><span class="name">NETWORK</span></div>
+    <form method="POST" action="/save" id="form">
+      <div class="lcd"><div class="field">
+        <label class="entry"><span class="ts">NETWORK NAME (SSID)</span>
+          <input class="lcdinput" name="ssid" id="ssid" maxlength="32" required autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="network name"></label>
+        <label class="entry"><span class="ts">PASSWORD</span>
+          <span class="inrow"><input class="lcdinput" name="pass" id="pass" type="password" maxlength="64" autocomplete="off" placeholder="blank if open">
+            <button class="reveal" id="reveal" type="button">SHOW</button></span></label>
+      </div></div>
+      <div class="keys">
+        <button class="key savekey" id="save" type="submit"><i><b>&#9654; SAVE</b><span class="led"></span></i><span>SAVE &amp; REBOOT</span></button>
+      </div>
+    </form>
+    <div class="plate">MODEL GW-WIFI · S/N <b id="sn">—</b> · RP2354 + ESP32-S3</div>
+  </section>
+
+  <div class="foot">gw-wifi · setup network</div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const ssid = $('#ssid'), pass = $('#pass'), msg = $('#msg'), sub = $('#sub'), list = $('#stations'), scanBtn = $('#scan');
+const ann = (id, cls) => { $(id).className = 'ann' + (cls ? ' ' + cls : ''); };
+const say = (t, cls = '') => { msg.textContent = t; msg.className = cls; };
+const led = (btn, cls) => { btn.querySelector('.led').className = 'led' + (cls ? ' ' + cls : ''); };
+
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  $('#themeToggle b').textContent = t === 'night' ? '☾' : '☼';
+  try { localStorage.setItem('floppy-lcd-theme', t); } catch (e) {}
+}
+let saved = 'day';
+try { saved = localStorage.getItem('floppy-lcd-theme') || 'day'; } catch (e) {}
+setTheme(saved === 'night' ? 'night' : 'day');
+$('#themeToggle').onclick = () => setTheme(document.documentElement.dataset.theme === 'night' ? 'day' : 'night');
+
+$('#reveal').onclick = () => { const show = pass.type === 'password'; pass.type = show ? 'text' : 'password'; $('#reveal').textContent = show ? 'HIDE' : 'SHOW'; };
+
+// RSSI -> 0..4 bars, the usual phone thresholds.
+const bars = r => r >= -55 ? 4 : r >= -65 ? 3 : r >= -75 ? 2 : r >= -85 ? 1 : 0;
+
+function render(nets) {
+  list.innerHTML = '';
+  if (!nets.length) { list.innerHTML = '<div class="empty">NO NETWORKS FOUND — TYPE THE NAME BELOW</div>'; return; }
+  nets.forEach((n, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'st' + (n.ssid === ssid.value ? ' sel' : '');
+    const pre = document.createElement('span'); pre.className = 'pre'; pre.textContent = String(i + 1).padStart(2, '0');
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = n.ssid;
+    if (n.lock) { const l = document.createElement('span'); l.className = 'lock'; l.textContent = '[PW]'; l.title = 'password protected'; nm.appendChild(l); }
+    const ch = document.createElement('span'); ch.className = 'ch'; ch.textContent = 'CH ' + n.ch;
+    const m = document.createElement('span'); m.className = 'bars'; m.title = n.rssi + ' dBm';
+    for (let k = 1; k <= 4; k++) { const i2 = document.createElement('i'); if (k <= bars(n.rssi)) i2.className = 'on'; m.appendChild(i2); }
+    b.append(pre, nm, ch, m);
+    b.onclick = () => {
+      ssid.value = n.ssid; ann('#aSel', 'on');
+      list.querySelectorAll('.st').forEach(x => x.classList.toggle('sel', x === b));
+      say('TUNED · ' + n.ssid.toUpperCase());
+      if (n.lock) pass.focus(); else { pass.value = ''; $('#save').focus(); }
+    };
+    list.appendChild(b);
+  });
+}
+
+async function scan(fresh) {
+  scanBtn.disabled = true; ann('#aScan', 'amb'); led(scanBtn, 'amb busy');
+  try {
+    const j = await (await fetch('/scan' + (fresh ? '?fresh=1' : ''), { cache: 'no-store' })).json();
+    if (j.sn) $('#sn').textContent = j.sn;
+    if (j.host) $('#host').textContent = j.host + '.local';
+    // One row per network name, strongest access point wins.
+    const best = new Map();
+    for (const n of j.nets || []) if (n.ssid && (!best.has(n.ssid) || best.get(n.ssid).rssi < n.rssi)) best.set(n.ssid, n);
+    render([...best.values()].sort((a, b) => b.rssi - a.rssi));
+  } catch (e) {
+    list.innerHTML = '<div class="empty">SCAN UNAVAILABLE — TYPE THE NAME BELOW</div>';
+  }
+  scanBtn.disabled = false; ann('#aScan', ''); led(scanBtn, '');
+}
+scanBtn.onclick = () => scan(true);
+ssid.oninput = () => { ann('#aSel', ssid.value ? 'on' : ''); list.querySelectorAll('.st').forEach(x => x.classList.remove('sel')); };
+
+$('#form').onsubmit = async e => {
+  e.preventDefault();
+  if (!ssid.value) { ssid.focus(); return; }
+  const save = $('#save'); save.disabled = true; led(save, 'amb busy');
+  say('SAVING…');
+  // Only the request can fail here: once /save answers OK the credentials are
+  // stored and the bridge is rebooting, so nothing after it may report failure.
+  try {
+    const r = await fetch('/save', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                     body: new URLSearchParams({ ssid: ssid.value, pass: pass.value }) });
+    if (!r.ok) throw new Error((await r.text()) || 'HTTP ' + r.status);
+  } catch (err) {
+    say('NOT SAVED · ' + err.message.toUpperCase(), 'err');
+    save.disabled = false; led(save, '');
+    return;
+  }
+  const host = $('#host').textContent;   // read before #sub (its parent) is rewritten
+  ann('#aSave', 'on'); ann('#aSetup', ''); led(save, 'grn');
+  say('SAVED · REBOOTING');
+  sub.innerHTML = '';
+  sub.append('The bridge is joining ', Object.assign(document.createElement('b'), { textContent: ssid.value }),
+             '. Put this phone back on that network, then open ',
+             Object.assign(document.createElement('b'), { textContent: host }), '.');
+  list.innerHTML = ''; scanBtn.disabled = true;
+};
+
+scan();
+</script>
+</body>
+</html>

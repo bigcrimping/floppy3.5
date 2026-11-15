@@ -1,0 +1,27 @@
+; SPDX-License-Identifier: Unlicense
+; Flux pulse generator. Side-set pin = WRDATA (active-low pulse, idles high).
+;
+; Clocked at 25 MHz, so 1 PIO cycle = 1 tick. Each TX word is an interval
+; minus the fixed overhead (FLUX_WRITE_BIAS_TICKS = 13); the CPU clamps short
+; intervals so it is never negative.
+;
+; Period audit (pulse start to pulse start), for TX word x:
+;   pull block  side 1              1     (stalls here, WRDATA high, when idle)
+;   mov x, osr  side 1              1
+;   gap loop                        x+1   (jmp x-- taken x times + fall-through)
+;   pulse low (2 x nop side 0 [4])  10    = 400 ns at 25 MHz (keirf's width)
+;   total                           x + 13
+;
+; At end of stream the SM stalls on `pull block` with WRDATA high and sets
+; FDEBUG.TXSTALL, which flux_pio.c uses as the "all pulses out" signal.
+
+.program flux_write
+.side_set 1
+.wrap_target
+    pull block    side 1
+    mov x, osr    side 1
+gap:
+    jmp x-- gap   side 1
+    nop           side 0 [4]
+    nop           side 0 [4]
+.wrap

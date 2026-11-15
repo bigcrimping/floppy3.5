@@ -1,0 +1,36 @@
+; SPDX-License-Identifier: Unlicense
+; Flux interval timer. JMP pin = RDDATA (active-low pulses, idles high).
+;
+; Each decrement takes 2 PIO cycles in both pin phases, so at 50 MHz one tick
+; is 40 ns (25 MHz = GW_SAMPLE_FREQ). Each falling edge pushes the inverted
+; count; DMA drains the FIFO.
+;
+; Cycle audit, falling edge to falling edge, for a pushed value c
+; (ticks_counted = 0xFFFFFFFF - c):
+;   mov isr, x                      1   (edge just detected)
+;   push block                      1
+;   [wrap] mov x, ~null             1
+;   enter low_phase jmp pin         1   } counted pairs start here:
+;   low phase   = 2 cycles/decrement    (jmp pin fall-through + jmp x--)
+;   high phase  = 2 cycles/decrement    (jmp x-- + jmp pin taken)
+;   low->high handover jmp pin      1
+; The ~4 fixed cycles around the push are 2 ticks the counter never saw;
+; flux_pio.c adds them back (FLUX_READ_BIAS_TICKS). Sub-tick residue is
+; +-40 ns — an order of magnitude under media jitter.
+;
+; Counter exhaustion (85 s of silence) would push a garbage sample, but the
+; CPU's wall-clock bound ends every capture long before.
+
+.program flux_read
+.wrap_target
+    mov x, ~null           ; x = 0xFFFFFFFF, count down from here
+low_phase:
+    jmp pin high_step      ; RDDATA back high -> count the high phase
+    jmp x-- low_phase      ; still low: one decrement per 2 cycles
+high_step:
+    jmp x-- high_chk       ; decrement (jump target is the next line either way)
+high_chk:
+    jmp pin high_step      ; still high: one decrement per 2 cycles
+    mov isr, x             ; falling edge: report the inverted count
+    push block             ; DMA drains; block = a full FIFO stalls, never drops
+.wrap

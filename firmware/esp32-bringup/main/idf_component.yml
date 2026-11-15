@@ -1,0 +1,4 @@
+## Managed component dependencies (ESP-IDF Component Manager).
+dependencies:
+  idf: ">=5.2"
+  espressif/led_strip: "^2.5.5"   # 4x WS2812 status strip over RMT (same as ../esp32)

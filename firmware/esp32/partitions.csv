@@ -1,0 +1,13 @@
+# Partition table for the ESP32-S3-WROOM-1-N16R8 (16 MB flash).
+#
+# Two OTA slots (ota.c) and no factory image: the other slot is the fallback.
+# Changing this table needs a wired `idf.py erase-flash flash`.
+#
+# Name,     Type, SubType,  Offset,   Size,     Flags
+nvs,        data, nvs,      0x9000,   0x6000,
+otadata,    data, ota,      0xf000,   0x2000,
+phy_init,   data, phy,      0x11000,  0x1000,
+ota_0,      app,  ota_0,    0x20000,  0x400000,
+ota_1,      app,  ota_1,    0x420000, 0x400000,
+# Remaining ~7.8 MB, reserved (unused).
+storage,    data, spiffs,   0x820000, 0x7E0000,

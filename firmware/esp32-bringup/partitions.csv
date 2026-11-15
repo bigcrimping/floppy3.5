@@ -1,0 +1,8 @@
+# Bring-up partition table: one factory app, no OTA. Deliberately NOT the
+# production two-slot layout (../esp32/partitions.csv) — this image is flashed
+# once over USB on the bench and then replaced. Because the layouts differ,
+# flash the production firmware afterwards with `idf.py erase-flash flash`.
+# Name,     Type, SubType,  Offset,   Size,     Flags
+nvs,        data, nvs,      0x9000,   0x6000,
+phy_init,   data, phy,      0xf000,   0x1000,
+factory,    app,  factory,  0x10000,  0x300000,
