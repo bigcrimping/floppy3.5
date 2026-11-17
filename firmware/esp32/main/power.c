@@ -924,3 +924,12 @@ void power_kill(void)
     lastoff_mark_kill();   // so the next boot can tell this from a power loss
     gpio_set_level(LTC_KILL_GPIO, 1);
 }
+
+int power_low_level(void)
+{
+    power_state_t ps;
+    if (!power_get(&ps) || !ps.gauge_ok || ps.usb_present || ps.soc < 0) return 0;
+    if (ps.soc <= BATT_CRIT_PCT) return 2;
+    if (ps.soc <= BATT_LOW_PCT) return 1;
+    return 0;
+}

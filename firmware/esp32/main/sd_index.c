@@ -194,6 +194,13 @@ bool sd_index_has_file(const uint8_t sha[SD_SHA_LEN], char *w, size_t n)
 bool sd_index_has_disk(const uint8_t sha[SD_SHA_LEN], char *w, size_t n)
 { return s_loaded && ent_find(sha, true, w, n); }
 
+int sd_index_disk_count(void)
+{
+    int n = 0;
+    for (int i = 0; i < s_n; i++) if (s_ent[i].is_disk) n++;
+    return n;
+}
+
 int sd_index_count(void)
 {
     int n = 0;

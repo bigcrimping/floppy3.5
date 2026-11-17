@@ -140,6 +140,14 @@
   .meter .bars i { flex: 1; background: var(--ghost); }
   .meter .bars i.on { background: var(--ink); }
   #pwrSub.warn { background: var(--ink); color: var(--lcd); padding: 2px 6px 0; }
+  /* Low battery / auto-off banner over the top of the page (status.batt.low,
+     status.autooff_s). Amber = low, red + blink = critical or switching off. */
+  #alertBar { position: sticky; top: 0; z-index: 20; margin: 0 0 10px; padding: 8px 14px;
+              font: 700 15px/1.2 var(--sans); letter-spacing: .06em; text-align: center;
+              border-radius: 6px; background: var(--amb); color: #1c1d1f; }
+  #alertBar.crit { background: var(--accent); color: #fff; animation: alertBlink 1s steps(2) infinite; }
+  #alertBar[hidden] { display: none; }
+  @keyframes alertBlink { 50% { opacity: .55; } }
 
   /* ---- 3 · disk contents ---- */
   .viewer { display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); gap: 18px; }
@@ -262,6 +270,7 @@
 </head>
 <body>
 <div class="wrap">
+  <div id="alertBar" role="status" aria-live="polite" hidden></div>
 
   <!-- 1 · main display: status, counters, track map, transport keys -->
   <section class="shell">
@@ -899,6 +908,26 @@ function updateBattery(b) {
   drawBatt();
 }
 
+// Banner: low / critical battery (on battery only), and the idle auto-off's
+// last minute. Only actions (a read, a download, a save...) and the device
+// buttons restart the auto-off timer; an open page polling status does not.
+function updateAlert(s) {
+  const bar = $('#alertBar'), b = s.batt || {}, left = s.autooff_s;
+  let msg = '', crit = false;
+  if (left != null && left >= 0 && left <= 60) {
+    msg = `SWITCHING OFF IN ${left}S — IDLE ON BATTERY · PRESS ANY BUTTON ON THE DEVICE TO STAY ON`;
+    crit = true;
+  } else if (b.low === 2) {
+    msg = `BATTERY CRITICAL — ${b.soc}% · PLUG IN USB BEFORE READING OR WRITING A DISK`;
+    crit = true;
+  } else if (b.low === 1) {
+    msg = `LOW BATTERY — ${b.soc}% · PLUG IN USB SOON`;
+  }
+  bar.hidden = !msg;
+  bar.textContent = msg;
+  bar.classList.toggle('crit', crit);
+}
+
 function fmtHours(h) {
   if (!isFinite(h) || h <= 0) return '--';
   if (h >= 10) return Math.round(h) + 'H';
@@ -1374,6 +1403,7 @@ async function tick() {
     setLed(readBtn, reading ? 'amb busy' : '');
     updateClock(s.time);
     updateBattery(s.batt);
+    updateAlert(s);
     updateDiag(s);
     // Track map: live during a read, and the final map once ready. Empty = clear.
     if (s.state === 'empty') { paintDiskMap('0'.repeat(NCYL * NHEAD)); }

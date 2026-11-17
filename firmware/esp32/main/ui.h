@@ -6,6 +6,18 @@
 
 void ui_init(void);
 
+// Something a person did (button, web action): restarts the auto-off timer.
+void ui_activity(void);
+// Auto-off is skipped while disabled (the WiFi setup portal).
+void ui_set_autooff_enabled(bool en);
+// For the LCD: seconds left on the SAVE+DISP WiFi reset (-1 = not held; 0 =
+// done, rebooting), and on the auto-off warning (-1 = not counting down).
+int  ui_chord_secs_left(void);
+bool ui_chord_fired(void);
+int  ui_autooff_secs_left(void);
+// Seconds until the idle auto-off, -1 when it is not running (USB, busy).
+int  ui_autooff_left_s(void);
+
 //   READ          - full disk read
 //   WTEST         - write self-test (rewrite cyl0 unchanged)
 //   COMMIT        - write a delete back to the disk (cyl0)

@@ -18,6 +18,8 @@
 #include "ota.h"
 #include "serialno.h"
 #include "lastoff.h"
+#include "wifi_pwr.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <string.h>
@@ -72,6 +74,7 @@ static bool recv_all(httpd_req_t *req, uint8_t *buf, size_t len)
 // GET /  -> single-page UI
 static esp_err_t h_index(httpd_req_t *req)
 {
+    ui_activity();      // a person is using the web page
     httpd_resp_set_type(req, "text/html");
     return httpd_resp_send(req, (const char *)index_html_start,
                            index_html_end - index_html_start - 1);
@@ -119,7 +122,7 @@ static esp_err_t h_status(httpd_req_t *req)
         snprintf(batt, sizeof(batt),
             "{\"soc\":%d,\"mv\":%u,\"usb\":%s,\"chg\":%s,\"state\":\"%s\","
             "\"rate_pph\":%s,\"ichg_ma\":%u,\"vreg_mv\":%u,\"thermreg\":%s,"
-            "\"settling\":%s,"
+            "\"settling\":%s,\"low\":%d,"
             // Sticky gauge alerts plus the three worth acting on, unpacked,
             // and the thresholds they were judged against.
             "\"alerts\":%u,\"alert_n\":%u,\"low_v\":%s,\"low_soc\":%s,"
@@ -141,6 +144,7 @@ static esp_err_t h_status(httpd_req_t *req)
             (unsigned)ps.ichg_ma, (unsigned)ps.vbatreg_mv,
             ps.thermreg ? "true" : "false",
             ps.gauge_reset ? "true" : "false",              // SOC still settling
+            power_low_level(),
             (unsigned)ps.gauge_alerts, (unsigned)ps.alert_count,
             (ps.gauge_alerts & 0x04) ? "true" : "false",   // VL
             (ps.gauge_alerts & 0x10) ? "true" : "false",   // HD
@@ -204,8 +208,10 @@ static esp_err_t h_status(httpd_req_t *req)
     // truncation would emit malformed JSON. n is clamped below because
     // snprintf returns the untruncated length.
     const esp_app_desc_t *app = esp_app_get_description();
-    char lastoff_s[200];
+    char lastoff_s[300];
     lastoff_json(lastoff_s, sizeof lastoff_s);
+    char wifipwr_s[140];
+    wifi_pwr_json(wifipwr_s, sizeof wifipwr_s);
     // The op the gw task is running ("" = idle) and those waiting behind it.
     char queued_s[80] = "";
     {
@@ -216,12 +222,12 @@ static esp_err_t h_status(httpd_req_t *req)
                 o += snprintf(queued_s + o, sizeof(queued_s) - o, "%s\"%s\"",
                               o ? "," : "", ui_op_name(op));
     }
-    char buf[2800];
+    char buf[3100];
     int n = snprintf(buf, sizeof(buf),
         "{\"serial\":\"%s\",\"state\":\"%s\",\"op\":\"%s\",\"queued\":[%s],\"disk_gen\":%u,\"done\":%u,\"total\":%u,\"bad\":%u,\"detail\":\"%s\","
         "\"link\":\"%s\",\"reset\":\"%s\",\"heap\":%u,\"heap_min\":%u,\"psram\":%u,\"ip\":\"%s\","
         "\"sd_cd\":%s,\"batt\":%s,\"gwdiag\":%s,\"time\":%s,\"temps\":%s,"
-        "\"ota\":{\"slot\":\"%s\",\"pending\":%s,\"ver\":\"%s\",\"built\":\"%s %s\"},\"drive5v\":{\"on\":%s,\"usb\":%s,\"hold_s\":%u},\"lastoff\":%s}",
+        "\"ota\":{\"slot\":\"%s\",\"pending\":%s,\"ver\":\"%s\",\"built\":\"%s %s\"},\"drive5v\":{\"on\":%s,\"usb\":%s,\"hold_s\":%u},\"lastoff\":%s,\"wifipwr\":%s,\"up_s\":%lu,\"autooff_s\":%d}",
         serialno_get(), state_str(disk_get_state()), ui_op_name(ui_running_op()),
         queued_s, (unsigned)disk_generation(),
         (unsigned)disk_sectors_done(),
@@ -234,7 +240,8 @@ static esp_err_t h_status(httpd_req_t *req)
         ota_running_label(), ota_pending_verify() ? "true" : "false",
         app->version, app->date, app->time,
         power_boost_is_on() ? "true" : "false", gw_usb_active() ? "true" : "false",
-        (unsigned)power_boost_hold_left(), lastoff_s);
+        (unsigned)power_boost_hold_left(), lastoff_s, wifipwr_s,
+        (unsigned long)(esp_timer_get_time() / 1000000), ui_autooff_left_s());
     if (n < 0) n = 0;
     else if (n >= (int)sizeof(buf)) n = (int)sizeof(buf) - 1;
     httpd_resp_set_type(req, "application/json");
@@ -262,6 +269,7 @@ static esp_err_t h_trackmap(httpd_req_t *req)
 // On a dirty disk the hash covers the image as read, bad sectors zero-filled.
 static esp_err_t h_list(httpd_req_t *req)
 {
+    // Polled every second by the page: not activity (auto-off).
     httpd_resp_set_type(req, "application/json");
     if (!disk_volume_acquire())
         return httpd_resp_sendstr(req, "[]");
@@ -303,6 +311,7 @@ static esp_err_t h_list(httpd_req_t *req)
 // GET /file?name=DSC00001.JPG -> raw bytes from the FAT
 static esp_err_t h_file(httpd_req_t *req)
 {
+    ui_activity();      // a person is using the web page
     char query[300], name[256];
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
         query_str(query, "name", name, sizeof(name)) != ESP_OK) {
@@ -345,6 +354,7 @@ static esp_err_t h_file(httpd_req_t *req)
 // GET /sdfile?path=DISK0007/MVC-00001.JPG -> raw bytes from the SD card.
 static esp_err_t h_sdfile(httpd_req_t *req)
 {
+    ui_activity();      // a person is using the web page
     char query[360], path[220];
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
         query_str(query, "path", path, sizeof(path)) != ESP_OK) {
@@ -387,6 +397,7 @@ static esp_err_t h_sdfile(httpd_req_t *req)
 // writes cyl0 (FAT + root dir) back to the floppy.
 static esp_err_t h_delete(httpd_req_t *req)
 {
+    ui_activity();      // a person is using the web page
     char query[300], name[256];
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
         query_str(query, "name", name, sizeof(name)) != ESP_OK) {
@@ -438,6 +449,7 @@ static esp_err_t h_delete(httpd_req_t *req)
 // power_request_charge_enable()).
 static esp_err_t h_charge(httpd_req_t *req)
 {
+    ui_activity();      // a person is using the web page
     char query[32], ens[8];
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
         httpd_query_key_value(query, "en", ens, sizeof(ens)) != ESP_OK) {
@@ -467,6 +479,7 @@ static esp_err_t h_charge(httpd_req_t *req)
 // max 1800): bench metering, or gw.exe on a controller too old to report USB.
 static esp_err_t h_drive5v(httpd_req_t *req)
 {
+    ui_activity();      // a person is using the web page
     char query[32], ss[12];
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
         httpd_query_key_value(query, "secs", ss, sizeof(ss)) != ESP_OK) {
@@ -483,11 +496,37 @@ static esp_err_t h_drive5v(httpd_req_t *req)
     return httpd_resp_sendstr(req, resp);
 }
 
+// POST /api/wifipwr?mode=0..3[&dbm=2..20] -> WiFi policy during drive
+// sessions (wifi_pwr.h). Saved in NVS.
+static esp_err_t h_wifipwr(httpd_req_t *req)
+{
+    ui_activity();      // a person is using the web page
+    char query[48], ms[8], ds[8];
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
+        httpd_query_key_value(query, "mode", ms, sizeof(ms)) != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+            "need ?mode=0..3 (normal/lowtx/off/spinup) [&dbm=2..20]");
+        return ESP_FAIL;
+    }
+    int dbm = wifi_pwr_low_dbm();
+    if (httpd_query_key_value(query, "dbm", ds, sizeof(ds)) == ESP_OK)
+        dbm = atoi(ds);
+    if (!wifi_pwr_set(atoi(ms), dbm)) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "mode 0..3, dbm 2..20");
+        return ESP_FAIL;
+    }
+    char resp[160];
+    wifi_pwr_json(resp, sizeof resp);
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, resp);
+}
+
 // POST /api/rpflash?addr=0x10000000 with a raw .bin body -> reprogram the
 // RP2354A over SWD (rp_flash.c). Runs on the httpd task for tens of seconds
 // with the controller halted. addr is the XIP base for build/gw_rp2354.bin.
 static esp_err_t h_rpflash(httpd_req_t *req)
 {
+    ui_activity();      // a person is using the web page
     char query[64], addrs[16];
     uint32_t addr = 0;
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK &&
@@ -542,6 +581,7 @@ static esp_err_t h_rpflash(httpd_req_t *req)
 // files from a PC; deletions self-heal on mount.
 static esp_err_t h_sd_reindex(httpd_req_t *req)
 {
+    ui_activity();      // a person is using the web page
     if (!sd_present()) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "no SD card");
         return ESP_FAIL;
@@ -559,6 +599,7 @@ static esp_err_t h_sd_reindex(httpd_req_t *req)
 // reboot. The new build must confirm itself or the bootloader rolls back.
 static esp_err_t h_ota(httpd_req_t *req)
 {
+    ui_activity();      // a person is using the web page
     char err[128] = "";
     if (req->content_len == 0) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "empty body");
@@ -624,6 +665,7 @@ static esp_err_t send_triggered(httpd_req_t *req, bool busy)
 // POST /api/read -> trigger a disk read
 static esp_err_t h_read(httpd_req_t *req)
 {
+    ui_activity();      // a person is using the web page
     bool busy = ui_running_op() >= 0;
     ui_trigger();
     return send_triggered(req, busy);
@@ -633,6 +675,7 @@ static esp_err_t h_read(httpd_req_t *req)
 // image already loaded.
 static esp_err_t h_retry(httpd_req_t *req)
 {
+    ui_activity();      // a person is using the web page
     if (disk_get_state() != DISK_READY_DIRTY) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "no partial disk to retry");
         return ESP_FAIL;
@@ -648,6 +691,7 @@ static esp_err_t h_retry(httpd_req_t *req)
 // write). Progress and the result are in /api/status.
 static esp_err_t h_image_write(httpd_req_t *req)
 {
+    ui_activity();      // a person is using the web page
     char query[32], src[12] = "";
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK)
         httpd_query_key_value(query, "src", src, sizeof(src));
@@ -694,6 +738,7 @@ static esp_err_t h_image_write(httpd_req_t *req)
 // /api/status "detail".
 static esp_err_t h_wtest(httpd_req_t *req)
 {
+    ui_activity();      // a person is using the web page
     if (disk_get_state() != DISK_READY && disk_get_state() != DISK_READY_DIRTY) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "no disk loaded");
         return ESP_FAIL;
@@ -707,6 +752,7 @@ static esp_err_t h_wtest(httpd_req_t *req)
 // "files":[{name,size,dir}]}. No path = the card root.
 static esp_err_t h_sd(httpd_req_t *req)
 {
+    // Polled every second by the page: not activity (auto-off).
     char query[200], path[160] = "";
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK)
         (void)query_str(query, "path", path, sizeof(path));
@@ -766,6 +812,7 @@ static bool sd_save_ready(httpd_req_t *req)
 // POST /api/sd/save?name=FOO.JPG -> copy one file from the image to the SD card.
 static esp_err_t h_sd_save(httpd_req_t *req)
 {
+    ui_activity();      // a person is using the web page
     char query[300], name[256];
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
         query_str(query, "name", name, sizeof(name)) != ESP_OK) {
@@ -795,6 +842,7 @@ static esp_err_t h_sd_save(httpd_req_t *req)
 // folder (see sd_save_disk()).
 static esp_err_t h_sd_save_all(httpd_req_t *req)
 {
+    ui_activity();      // a person is using the web page
     char query[48], forces[8];
     bool force = false;
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK &&
@@ -840,6 +888,7 @@ static esp_err_t h_sd_save_all(httpd_req_t *req)
 // EEPROM. Won't overwrite a different number unless forced.
 static esp_err_t h_serial(httpd_req_t *req)
 {
+    ui_activity();      // a person is using the web page
     char query[96], sn[SERIALNO_MAX + 2] = "", force[4] = "";
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK) {
         // Oversized values truncate to 33 chars and then fail validation.
@@ -864,6 +913,7 @@ static esp_err_t h_serial(httpd_req_t *req)
 // POST /api/wifi/forget -> erase WiFi creds and reboot into the setup portal.
 static esp_err_t h_wifi_forget(httpd_req_t *req)
 {
+    ui_activity();      // a person is using the web page
     provision_clear_creds();
     ESP_LOGW(TAG, "WiFi credentials cleared via web — rebooting into setup portal");
     httpd_resp_set_type(req, "application/json");
@@ -904,6 +954,7 @@ void web_start(void)
         { .uri = "/api/wifi/forget", .method = HTTP_POST, .handler = h_wifi_forget },
         { .uri = "/api/charge",  .method = HTTP_POST, .handler = h_charge  },
         { .uri = "/api/drive5v", .method = HTTP_POST, .handler = h_drive5v },
+        { .uri = "/api/wifipwr", .method = HTTP_POST, .handler = h_wifipwr },
         { .uri = "/api/rpflash", .method = HTTP_POST, .handler = h_rpflash },
         { .uri = "/api/ota",     .method = HTTP_POST, .handler = h_ota     },
         { .uri = "/api/serial",  .method = HTTP_POST, .handler = h_serial  },

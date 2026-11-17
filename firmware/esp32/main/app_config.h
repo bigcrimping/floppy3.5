@@ -182,6 +182,18 @@
 
 // Open SoftAP for the captive setup portal when no WiFi is stored.
 #define PROVISION_AP_SSID   "Floppy-Setup"
+// Battery warnings (gauge state of charge, on battery only): power_low_level().
+#define BATT_LOW_PCT        15
+#define BATT_CRIT_PCT       5
+
+// On battery, switch off after this long with no button press, web action or
+// drive work; the LCD counts down the last AUTO_OFF_WARN_S.
+#define AUTO_OFF_IDLE_S     300
+#define AUTO_OFF_WARN_S     30
+
+// Hold SAVE + DISP this long to forget the WiFi network and reboot to setup.
+#define WIFI_RESET_HOLD_MS  5000
+
 #define WIFI_CONNECT_TIMEOUT_MS 15000      // don't block the read path on WiFi
 #define MDNS_HOSTNAME       "floppy"       // -> floppy.local
 #define MDNS_INSTANCE       "Floppy Bridge"

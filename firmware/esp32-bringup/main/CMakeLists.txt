@@ -32,3 +32,9 @@ idf_component_register(
         esp_netif
         esp_event
 )
+
+# link_spi.c and crc16.c live outside this project, so ESP-IDF's own path
+# hiding (CONFIG_COMPILER_HIDE_PATHS_MACROS) misses them and their __FILE__
+# would embed the build PC's absolute path. Map the shared firmware folder.
+get_filename_component(BU_SHARED_FW_DIR "${COMPONENT_DIR}/../.." ABSOLUTE)
+target_compile_options(${COMPONENT_LIB} PRIVATE "-fmacro-prefix-map=${BU_SHARED_FW_DIR}=firmware")

@@ -115,6 +115,11 @@ void     power_boost_hold(uint32_t secs);
 uint32_t power_boost_hold_left(void);   // seconds, 0 = no hold
 bool     power_boost_is_on(void);
 
+// Battery warning level for the LCD and /api/status: 0 = fine, 1 = low
+// (<= BATT_LOW_PCT), 2 = critical (<= BATT_CRIT_PCT). Always 0 on USB power
+// or when the gauge is absent.
+int power_low_level(void);
+
 // Latch system power off via LTC2954 KILL. Caller checks power_present().
 void power_kill(void);
 

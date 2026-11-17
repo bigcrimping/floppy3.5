@@ -32,6 +32,7 @@ bool sd_index_add_file(const uint8_t sha[SD_SHA_LEN], uint32_t size, const char 
 bool sd_index_add_disk(const uint8_t sha[SD_SHA_LEN], const char *dir, int nfiles);
 
 int sd_index_count(void);      // indexed files (disk entries not counted)
+int sd_index_disk_count(void); // disk entries (one per archived DISKnnnn)
 bool sd_index_is_loaded(void);
 
 // Rehash every file in every top-level folder and rewrite the index. Slow

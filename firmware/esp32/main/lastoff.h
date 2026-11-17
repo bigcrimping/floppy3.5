@@ -23,8 +23,19 @@ void lastoff_boot(void);
 // refreshes it at most every LASTOFF_SAVE_MS, closes it when the rail turns off.
 void lastoff_tick(void);
 
+// The next lastoff_mark_kill() is the idle auto-off (cause "auto_off").
+void lastoff_set_auto(void);
+
 // Record a deliberate power-off. Call right before asserting KILL.
 void lastoff_mark_kill(void);
+
+// Drive-session phase marker, saved at once (so a death pins the step).
+enum { LO_PH_NONE = 0, LO_PH_BOOST = 1, LO_PH_MOTOR_CMD = 2, LO_PH_MOTOR_ACK = 3,
+       LO_PH_SETTLED = 4, LO_PH_RADIO_ON = 5, LO_PH_TRACKS = 6 };
+void lastoff_phase(int phase);
+
+// Previous boot's cause for the LCD: "LOST IN READ" / "POWER BUTTON" / "NORMAL".
+const char *lastoff_prev_short(void);
 
 // JSON object for /api/status, e.g. {"cause":"lost_in_session",...}.
 void lastoff_json(char *buf, size_t len);

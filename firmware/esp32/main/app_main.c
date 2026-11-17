@@ -11,6 +11,7 @@
 #include "provision.h"
 #include "web.h"
 #include "ui.h"
+#include "wifi_pwr.h"
 #include "storage.h"
 #include "sd_index.h"
 #include "display.h"
@@ -155,6 +156,7 @@ static void wifi_evt(void *arg, esp_event_base_t base, int32_t id, void *data)
                 esp_restart();
             }
         }
+        if (wifi_pwr_radio_paused()) return;   // stopped on purpose for a drive session
         ESP_LOGW(TAG, "wifi disconnected (reason %d), retrying", reason);
         esp_wifi_connect();
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
@@ -203,6 +205,7 @@ static void wifi_start(void)
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wc));
     ESP_ERROR_CHECK(esp_wifi_start());
+    wifi_pwr_sta_ready();
 
     ESP_LOGI(TAG, "connecting to SSID '%s' (creds from %s)...",
              ssid, from_nvs ? "NVS" : "build default");
@@ -1008,6 +1011,7 @@ static void gw_task(void *arg)
 void app_main(void)
 {
     ESP_ERROR_CHECK(nvs_flash_init());
+    wifi_pwr_init();
 
     // Everything is UTC (get_fattime() uses localtime_r()); the browser
     // converts for display.
@@ -1053,6 +1057,7 @@ void app_main(void)
         web_start();
     } else {
         display_set_mode(DISPLAY_PROVISIONING);
+        ui_set_autooff_enabled(false);   // the portal has no activity hook
         provision_run_portal();
     }
 

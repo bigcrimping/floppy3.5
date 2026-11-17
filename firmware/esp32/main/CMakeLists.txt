@@ -27,6 +27,7 @@ idf_component_register(
         "rp_swd.c"      # bit-banged SWD master (controller flashing)
         "rp_flash.c"    # SWD + RAM-stub flasher, /api/rpflash
         "ota.c"         # bridge self-update over WiFi, /api/ota
+        "wifi_pwr.c"    # WiFi TX/radio policy during drive sessions
         "lastoff.c"     # shutdown breadcrumb in NVS (lastoff in /api/status)
     INCLUDE_DIRS "."
     EMBED_TXTFILES "www/index.html" "www/setup.html"

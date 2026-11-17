@@ -25,8 +25,9 @@ void display_note_saved(const char *name);
 // a SAVE did nothing. Cleared by display_note_saved(NULL).
 void display_note(const char *text);
 
-// DISP: toggle the home screen over the disk screen until the state changes.
-void display_toggle_home(void);
+// DISP: next page (disk -> WiFi -> battery -> SD -> system -> disk). Back to
+// the disk page when the disk state changes, or two minutes after a press.
+void display_next_page(void);
 
 // Panel sleep/wake (the backlight stays on). Safe from any task.
 void display_set_power(bool on);

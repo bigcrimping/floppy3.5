@@ -8,6 +8,14 @@
 #include "rp_flash.h"
 #include "ui.h"
 #include "font8x8.h"
+#include "wifi_pwr.h"
+#include "lastoff.h"
+#include "serialno.h"
+#include "temps.h"
+#include "sd_index.h"
+#include "esp_app_desc.h"
+#include <time.h>
+#include <ctype.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -449,9 +457,13 @@ static TaskHandle_t            s_task;
 static int64_t                 s_read_t0, s_read_ms = -1;
 static disk_state_t            s_last_state = DISK_EMPTY;
 
-// DISP shows the IP/QR screen over the disk screen until the disk state
-// changes.
-static volatile bool s_home;
+// DISP steps through the pages; page 0 is the state-driven disk screen. Back
+// to it when the disk state changes or PAGE_TIMEOUT_US after the last press.
+enum { PAGE_DISK = 0, PAGE_WIFI, PAGE_POWER, PAGE_SD, PAGE_SYSTEM, PAGE_N };
+#define PAGE_TIMEOUT_US (120LL * 1000000)
+static volatile int  s_page;
+static int64_t       s_page_us;
+static char          s_saved_dir[16];   // last SAVE folder, for the SD page
 
 static void icon_row(bool online, bool reading, bool loaded, bool warn)
 {
@@ -471,6 +483,23 @@ static void icon_row(bool online, bool reading, bool loaded, bool warn)
            : ps.charging              ? BATT_CHARGING
                                       : BATT_USB_IDLE;   // e.g. too hot/cold to charge
     battery(FR - 24, 4, have ? ps.soc : -1, bm);
+
+    int low = power_low_level();
+    if (low) {
+        // Battery warning replaces the SD line on every screen; critical blinks.
+        char w[24];
+        snprintf(w, sizeof w, low == 2 ? "BATTERY CRITICAL %d%%" : "LOW BATTERY %d%%",
+                 have ? ps.soc : 0);
+        if (low == 1 || s_blink) {
+            fill(FX, 17, FW, 12, C_INK);
+            text_c(19, w, 1, 1, C_LCD);
+        } else {
+            text_c(19, w, 1, 1, C_INK);
+        }
+        icon(FX + 88, 4, IC_WARN, true);
+        fill(FX, 30, FW, 1, C_GHOST);
+        return;
+    }
 
     char b[16];
     uint64_t total, freeb;
@@ -711,6 +740,266 @@ static void screen_update(const char *what, int pct, bool restarting)
     text_c(250, "SWITCH OFF", 1, 2, C_LCD);
 }
 
+// ---------------- DISP pages ----------------
+
+static void upcase(char *s) { for (; *s; s++) *s = (char)toupper((unsigned char)*s); }
+
+// Which page this is, as dots along the bottom edge.
+static void page_dots(int page)
+{
+    int x = cx(PAGE_N * 12 - 6);
+    for (int i = 0; i < PAGE_N; i++)
+        fill(x + i * 12, LCD_H - 10, 6, 6, i == page ? C_INK : C_GHOST);
+}
+
+// "LABEL      VALUE" on one 16 px row, value right-aligned; a value too long
+// for the row drops to the next one. Returns the y for the next row.
+static int kv(int y, const char *label, const char *value)
+{
+    char v[24];
+    snprintf(v, sizeof v, "%s", value);
+    upcase(v);
+    text(FX, y, label, 1, 2, C_DIM);
+    if (text_w(label, 1) + 8 + text_w(v, 1) > FW) y += 17;
+    text(FR - text_w(v, 1), y, v, 1, 2, C_INK);
+    return y + 19;
+}
+
+static void fmt_hours(char *b, size_t n, float h)
+{
+    if (!(h > 0) || h > 999) { snprintf(b, n, "--"); return; }
+    int m = (int)(h * 60 + 0.5f);
+    if (m < 60)       snprintf(b, n, "%dM", m < 1 ? 1 : m);
+    else if (h >= 10) snprintf(b, n, "%dH", (int)(h + 0.5f));
+    else              snprintf(b, n, "%dH %02dM", m / 60, m % 60);
+}
+
+// A 20-segment meter, 0..100.
+static void meter(int y, int pct)
+{
+    const int n = 20;
+    int lit = (pct * n + 50) / 100, bx = cx(n * 7 - 2);
+    for (int i = 0; i < n; i++) fill(bx + i * 7, y, 5, 10, i < lit ? C_INK : C_GHOST);
+}
+
+static void screen_wifi(const char *ip, bool online)
+{
+    begin();
+    icon_row(online, false, false, false);
+    text_c(38, "WI-FI", 2, 2, C_INK);
+    int y = 60;
+    char b[40];
+    if (online) {
+        snprintf(b, sizeof b, "http://%s/", ip);
+        qr_ensure(b);
+        y = qr_draw(y, 104) + 2;
+        text_c(y, ip, 1, 2, C_INK);
+        y += 22;
+        char ssid[33] = "";
+        int rssi = 0, ch = 0;
+        if (wifi_pwr_ap(ssid, sizeof ssid, &rssi, &ch)) {
+            ssid[19] = '\0';
+            upcase(ssid);
+            text_c(y, ssid, 1, 2, C_INK);
+            y += 22;
+            // Signal: four rising bars beside the dBm figure.
+            int bars = rssi > -55 ? 4 : rssi > -65 ? 3 : rssi > -75 ? 2 : rssi > -85 ? 1 : 0;
+            snprintf(b, sizeof b, "%d DBM CH%d", rssi, ch);
+            int w = 4 * 6 + 6 + text_w(b, 1), x = cx(w);
+            for (int i = 0; i < 4; i++)
+                fill(x + i * 6, y + 12 - (i + 1) * 3, 4, (i + 1) * 3, i < bars ? C_INK : C_GHOST);
+            text(x + 30, y + 4, b, 1, 1, C_INK);
+            y += 20;
+        }
+    } else {
+        text_c(y + 30, "CONNECTING", 1, 2, C_INK);
+        text_c(y + 56, "OR NO NETWORK", 1, 1, C_DIM);
+        y += 120;
+    }
+    text_c(LCD_H - 40, "HOLD SAVE+DISP 5S", 1, 1, C_DIM);
+    text_c(LCD_H - 28, "TO FORGET NETWORK", 1, 1, C_DIM);
+    page_dots(PAGE_WIFI);
+}
+
+static void screen_power(void)
+{
+    begin();
+    icon_row(s_online, false, false, false);
+    text_c(38, "BATTERY", 2, 2, C_INK);
+    power_state_t ps;
+    if (!power_get(&ps) || !ps.gauge_ok) {
+        digits(cx(digits_w(66, "--")), 66, 66, "--", C_INK);
+        text_c(150, "NO GAUGE", 1, 2, C_INK);
+        page_dots(PAGE_POWER);
+        return;
+    }
+    char b[32], t[16];
+    int soc = ps.soc < 0 ? 0 : ps.soc > 99 ? 99 : ps.soc;
+    snprintf(b, sizeof b, "%2d", soc);
+    int x = cx(digits_w(66, b) - 2 + text_w("%", 2));
+    x = digits(x, 60, 66, b, C_INK);
+    text(x - 2, 110, "%", 2, 2, C_INK);
+    meter(134, ps.soc < 0 ? 0 : ps.soc);
+    snprintf(b, sizeof b, "%u.%02u V", ps.mv / 1000, (ps.mv % 1000) / 10);
+    text_c(152, b, 1, 2, C_INK);
+
+    // Status and time: to full while charging, to empty on battery.
+    float rate = ps.crate_valid ? ps.crate_cpph / 100.0f : 0;
+    const char *st;
+    if (ps.usb_present)
+        st = ps.chg_state == CHG_DONE ? "CHARGED" : ps.charging ? "CHARGING" : "ON USB";
+    else
+        st = "ON BATTERY";
+    text_c(176, st, 1, 2, C_INK);
+    b[0] = '\0';
+    if (ps.charging && rate > 0.1f) {
+        fmt_hours(t, sizeof t, (100 - ps.soc) / rate);
+        snprintf(b, sizeof b, "FULL IN %s", t);
+    } else if (!ps.usb_present && rate < -0.1f && !ps.gauge_reset) {
+        fmt_hours(t, sizeof t, ps.soc / -rate);
+        snprintf(b, sizeof b, "%s LEFT", t);
+    } else if (!ps.usb_present) {
+        snprintf(b, sizeof b, ps.gauge_reset ? "GAUGE SETTLING" : "TIME LEFT --");
+    }
+    if (b[0]) text_c(198, b, 1, 2, C_INK);
+
+    int y = 226;
+    if (ps.charging) {
+        snprintf(b, sizeof b, "%u MA", ps.ichg_ma);
+        y = kv(y, "CHARGE", b);
+    }
+    temps_t tp;
+    temps_get(&tp);
+    if (tp.batt_zone_valid)
+        y = kv(y, "BATT TEMP", tp.batt_ts_open ? "NO SENSOR" : power_ts_zone_str(tp.batt_zone));
+    int left = ui_autooff_left_s();
+    if (left >= 0) {
+        snprintf(b, sizeof b, "%d:%02d", left / 60, left % 60);
+        y = kv(y, "AUTO-OFF", b);
+    }
+    page_dots(PAGE_POWER);
+}
+
+static void screen_sd(void)
+{
+    begin();
+    icon_row(s_online, false, false, false);
+    text_c(38, "SD CARD", 2, 2, C_INK);
+    uint64_t total = 0, freeb = 0;
+    if (!sd_present() || !sd_usage(&total, &freeb) || !total) {
+        text_c(90, sd_present() ? "CARD ERROR" : "NO CARD", 2, 2, C_INK);
+        text_c(124, "INSERT A MICROSD", 1, 1, C_DIM);
+        text_c(136, "CARD TO ARCHIVE", 1, 1, C_DIM);
+        page_dots(PAGE_SD);
+        return;
+    }
+    char b[32];
+    double gb = (double)freeb / 1073741824.0;
+    bool in_gb = gb >= 1;
+    snprintf(b, sizeof b, "%2d", in_gb ? (gb > 99 ? 99 : (int)(gb + 0.5))
+                                       : (int)((double)freeb / 1048576.0) % 1000);
+    int x = cx(digits_w(66, b) + 4 + text_w("FREE", 1));
+    x = digits(x, 60, 66, b, C_INK);
+    text(x + 4, 92, in_gb ? "GB" : "MB", 1, 2, C_INK);
+    text(x + 4, 112, "FREE", 1, 1, C_INK);
+    int used_pct = (int)((total - freeb) * 100 / total);
+    meter(134, used_pct);
+    double used_mb = (double)(total - freeb) / 1048576.0;
+    if (used_mb < 1000) snprintf(b, sizeof b, "%d MB OF %.0f GB", (int)used_mb, total / 1073741824.0);
+    else                snprintf(b, sizeof b, "%.1f OF %.0f GB", used_mb / 1024.0, total / 1073741824.0);
+    text_c(152, b, 1, 2, C_INK);
+
+    int y = 182;
+    bool idx = sd_index_is_loaded();
+    snprintf(b, sizeof b, "%d", sd_index_disk_count());
+    y = kv(y, "DISKS SAVED", idx ? b : "--");
+    snprintf(b, sizeof b, "%d", sd_index_count());
+    y = kv(y, "FILES", idx ? b : "--");
+    y = kv(y, "LAST SAVE", s_saved_dir[0] ? s_saved_dir : "--");
+    text_c(LCD_H - 28, "SAVE: ARCHIVE DISK", 1, 1, C_DIM);
+    page_dots(PAGE_SD);
+}
+
+static void screen_system(void)
+{
+    begin();
+    icon_row(s_online, false, false, false);
+    text_c(38, "SYSTEM", 2, 2, C_INK);
+    const esp_app_desc_t *app = esp_app_get_description();
+    char b[32];
+    int y = 60;
+    snprintf(b, sizeof b, "%.31s", app->version);
+    char *dirty = strstr(b, "-dirty");      // uncommitted build: hash + "+"
+    if (dirty) strcpy(dirty, "+");
+    b[11] = 0;
+    y = kv(y, "FIRMWARE", b);
+    snprintf(b, sizeof b, "%.6s %.5s", app->date, app->time);
+    y = kv(y, "BUILT", b);
+    y = kv(y, "SLOT", ota_running_label());
+    y = kv(y, "SERIAL", serialno_get());
+    int64_t up = esp_timer_get_time() / 1000000;
+    snprintf(b, sizeof b, "%d:%02d:%02d", (int)(up / 3600), (int)(up / 60 % 60), (int)(up % 60));
+    y = kv(y, "UPTIME", b);
+    time_t now = time(NULL);
+    if (now > 1600000000) {
+        struct tm tm;
+        gmtime_r(&now, &tm);
+        snprintf(b, sizeof b, "%02d:%02d UTC", tm.tm_hour, tm.tm_min);
+    } else {
+        snprintf(b, sizeof b, "NOT SET");
+    }
+    y = kv(y, "CLOCK", b);
+    temps_t tp;
+    temps_get(&tp);
+    if (tp.esp_valid && tp.rp_valid) snprintf(b, sizeof b, "%dC/%dC", (int)tp.esp_c, (int)tp.rp_c);
+    else if (tp.esp_valid)           snprintf(b, sizeof b, "%dC/--", (int)tp.esp_c);
+    else                             snprintf(b, sizeof b, "--");
+    y = kv(y, "ESP/RP", b);
+    text(FX, y, "LAST OFF", 1, 2, C_DIM);
+    y += 17;
+    text(FR - text_w(lastoff_prev_short(), 1), y, lastoff_prev_short(), 1, 2, C_INK);
+    page_dots(PAGE_SYSTEM);
+}
+
+// SAVE + DISP held: WiFi reset countdown. Takes the screen over.
+static void screen_chord(int left)
+{
+    begin();
+    icon_row(s_online, false, false, true);
+    text_c(44, "WI-FI", 2, 2, C_INK);
+    text_c(66, "RESET", 2, 2, C_INK);
+    if (ui_chord_fired()) {
+        fill(FX, 120, FW, 60, C_INK);
+        text_c(128, "CLEARED", 2, 2, C_LCD);
+        text_c(154, "RESTARTING", 1, 2, C_LCD);
+        text_c(206, "THEN JOIN", 1, 1, C_INK);
+        text_c(218, PROVISION_AP_SSID, 1, 2, C_INK);
+        text_c(240, "TO SET IT UP AGAIN", 1, 1, C_INK);
+        return;
+    }
+    char b[12];
+    snprintf(b, sizeof b, "%d", left < 0 ? 0 : left > 9 ? 9 : left);
+    digits(cx(digits_w(90, b)), 104, 90, b, C_INK);
+    text_c(214, "KEEP HOLDING", 1, 2, C_INK);
+    text_c(236, "SAVE + DISP", 1, 2, C_INK);
+    text_c(270, "LET GO TO CANCEL", 1, 1, C_DIM);
+}
+
+// Idle on battery: the last AUTO_OFF_WARN_S before switching off.
+static void screen_autooff(int left)
+{
+    begin();
+    icon_row(s_online, false, false, true);
+    text_c(44, "POWER OFF", 2, 2, C_INK);
+    char b[12];
+    snprintf(b, sizeof b, "%2d", left > 99 ? 99 : left);
+    digits(cx(digits_w(90, b)), 84, 90, b, C_INK);
+    text_c(190, "IDLE ON BATTERY", 1, 2, C_INK);
+    fill(FX, 224, FW, 44, C_INK);
+    text_c(230, "PRESS ANY BUTTON", 1, 2, C_LCD);
+    text_c(250, "TO STAY ON", 1, 2, C_LCD);
+}
+
 // What is being updated, or NULL. ESP32 first: its 100 % stays up until the
 // reboot.
 static const char *update_state(int *pct)
@@ -731,7 +1020,9 @@ static disk_state_t track_state(void)
     if (st == DISK_READING && s_last_state != DISK_READING) s_read_t0 = now_ms;
     if (st != DISK_READING && s_last_state == DISK_READING) s_read_ms = now_ms - s_read_t0;
     if (st == DISK_EMPTY) s_read_ms = -1;
-    if (st != s_last_state) s_home = false;
+    if (st != s_last_state) s_page = PAGE_DISK;
+    if (s_page != PAGE_DISK && esp_timer_get_time() - s_page_us > PAGE_TIMEOUT_US)
+        s_page = PAGE_DISK;
     s_last_state = st;
     return st;
 }
@@ -747,17 +1038,23 @@ static void render(disk_state_t st)
         lcd_flush();
         return;
     }
-    if (s_mode == DISPLAY_PROVISIONING) { screen_provisioning(); lcd_flush(); return; }
-
     char ip[16];
     net_sta_ip_str(ip, sizeof(ip));
     bool online = s_online = strcmp(ip, "0.0.0.0") != 0;
 
-    if (s_home && st != DISK_READING) {
-        if (online) screen_idle(ip, st == DISK_READY || st == DISK_READY_DIRTY);
-        else        screen_connecting();
-        lcd_flush();
-        return;
+    int left = ui_chord_secs_left();
+    if (left >= 0) { screen_chord(left); lcd_flush(); return; }
+    left = ui_autooff_secs_left();
+    if (left >= 0) { screen_autooff(left); lcd_flush(); return; }
+
+    if (s_mode == DISPLAY_PROVISIONING) { screen_provisioning(); lcd_flush(); return; }
+
+    switch (s_page) {
+    case PAGE_WIFI:   screen_wifi(ip, online); lcd_flush(); return;
+    case PAGE_POWER:  screen_power();          lcd_flush(); return;
+    case PAGE_SD:     screen_sd();             lcd_flush(); return;
+    case PAGE_SYSTEM: screen_system();         lcd_flush(); return;
+    default: break;
     }
 
     switch (st) {
@@ -786,7 +1083,10 @@ static void display_task(void *arg)
         // An update shows even if the panel was put to sleep.
         int upct;
         bool updating = update_state(&upct) != NULL;
-        if (updating && !s_power) { s_power = true; s_power_dirty = true; }
+        // Updates and the WiFi-reset / auto-off countdowns show even if the
+        // panel was put to sleep.
+        bool overlay = ui_chord_secs_left() >= 0 || ui_autooff_secs_left() >= 0;
+        if ((updating || overlay) && !s_power) { s_power = true; s_power_dirty = true; }
         if (s_power_dirty) {
             s_power_dirty = false;
             if (s_power) {
@@ -803,7 +1103,7 @@ static void display_task(void *arg)
         if (s_power && s_ok) render(st);
         // A button press (home / power) redraws at once. Faster during an
         // update: an ESP32 one only lasts a few seconds.
-        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(updating ? 150 : 400));
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(updating ? 150 : overlay ? 250 : 400));
     }
 }
 
@@ -830,10 +1130,16 @@ void display_note_saved(const char *name)
 {
     if (!name || !name[0]) { s_note[0] = '\0'; return; }
     snprintf(s_note, sizeof(s_note), "SAVED TO %.12s", name);
+    snprintf(s_saved_dir, sizeof(s_saved_dir), "%.12s", name);
 }
 
 static void wake(void) { if (s_task) xTaskNotifyGive(s_task); }
 
-void display_toggle_home(void)      { s_home = !s_home; wake(); }
+void display_next_page(void)
+{
+    s_page = (s_page + 1) % PAGE_N;
+    s_page_us = esp_timer_get_time();
+    wake();
+}
 void display_set_power(bool on)    { s_power = on; s_power_dirty = true; wake(); }
 void display_toggle_power(void)    { display_set_power(!s_power); }

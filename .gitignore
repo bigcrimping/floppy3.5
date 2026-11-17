@@ -12,3 +12,6 @@ __pycache__/
 # WiFi credentials (never commit)
 wifi_creds.csv
 wifi_creds.bin
+
+# Release zips: uploaded to the GitHub Releases page, not committed
+release/

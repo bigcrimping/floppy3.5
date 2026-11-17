@@ -1,4 +1,6 @@
 #include "gw_client.h"
+#include "wifi_pwr.h"
+#include "lastoff.h"
 #include "gw_proto.h"
 #include "flux_decode.h"
 #include "app_config.h"
@@ -366,20 +368,29 @@ void gw_idle_poll(void)
 
 bool gw_drive_prepare(void)
 {
+    wifi_pwr_drive_begin();    // radio policy before the load comes on
     power_boost_5v(true);
+    lastoff_phase(LO_PH_BOOST);
     vTaskDelay(pdMS_TO_TICKS(10));        // boost settle
 
     uint8_t bus = GW_BUS_SHUGART;
-    if (!cmd_ok(CMD_SET_BUS_TYPE, &bus, 1, 200)) { power_boost_5v(false); return false; }
+    if (!cmd_ok(CMD_SET_BUS_TYPE, &bus, 1, 200)) { power_boost_5v(false); wifi_pwr_drive_end(); return false; }
 
     uint8_t unit = GW_DRIVE_UNIT;
-    if (!cmd_ok(CMD_SELECT, &unit, 1, 200)) { power_boost_5v(false); return false; }
+    if (!cmd_ok(CMD_SELECT, &unit, 1, 200)) { power_boost_5v(false); wifi_pwr_drive_end(); return false; }
 
     uint8_t motor[2] = { GW_DRIVE_UNIT, 1 };   // {unit, on}
     // The controller waits motor_delay (750 ms default) before acking.
+    lastoff_phase(LO_PH_MOTOR_CMD);
     if (!cmd_ok(CMD_MOTOR, motor, 2, 1500)) { gw_drive_release(); return false; }
+    lastoff_phase(LO_PH_MOTOR_ACK);
 
     vTaskDelay(pdMS_TO_TICKS(500));            // motor spin-up settle
+    lastoff_phase(LO_PH_SETTLED);
+    if (wifi_pwr_radio_paused() && wifi_pwr_mode() == WIFIPWR_SPINUP) {
+        wifi_pwr_spinup_done();
+        lastoff_phase(LO_PH_RADIO_ON);
+    }
     return true;
 }
 
@@ -390,6 +401,7 @@ void gw_drive_release(void)
     send_cmd(CMD_DESELECT, NULL, 0); (void)read_ack(CMD_DESELECT, 200);
     (void)gw_refresh_diag();         // safe point: we own the link and it's idle
     power_boost_5v(false);
+    wifi_pwr_drive_end();
 }
 
 // ---- flux read ----
