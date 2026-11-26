@@ -7,8 +7,10 @@ $ErrorActionPreference = "Stop"
 # No clang on this machine? TinyCC builds these too (it just needs the C11
 # static asserts neutralised, as the ESP host tests do).
 $cflags = @("-std=c11", "-O1", "-Wall", "-Wextra")
-if (-not (Test-Path $Clang) -and (Test-Path "C:\TEMP\claude\tools\tcc\tcc.exe")) {
-    $Clang  = "C:\TEMP\claude\tools\tcc\tcc.exe"
+# $env:TCC, else tcc from the PATH.
+$tcc = if ($env:TCC) { $env:TCC } else { (Get-Command tcc -ErrorAction SilentlyContinue).Source }
+if (-not (Test-Path $Clang) -and $tcc -and (Test-Path $tcc)) {
+    $Clang  = $tcc
     $cflags = @("-Wall", "-D_Static_assert(c,m)=")
 }
 $here   = Split-Path -Parent $MyInvocation.MyCommand.Path        # test/host

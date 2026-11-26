@@ -38,7 +38,12 @@ typedef struct {
     bool     crate_valid;
     uint8_t  gauge_status;  // live STATUS high byte; normally 0 because
                             // service_alert() clears it
-    bool     gauge_reset;   // RI: the gauge power-cycled and its model restarted
+    bool     gauge_reset;   // within GAUGE_SETTLE_US of seeing (and clearing) RI:
+                            // the gauge power-cycled and SOC is still converging
+    uint8_t  gauge_rcomp;   // CONFIG.RCOMP as last written/read, 0 = unknown
+    int8_t   rcomp_temp_c;  // temperature the RCOMP was computed for
+    bool     rcomp_comp;    // RCOMP is temperature-compensated (a fresh temp)
+    uint16_t vreset_mv;     // gauge VRESET threshold read back, 0 = unknown
 
     // Every MAX17048 alert since boot (STATUS bit layout), kept because the
     // interesting ones are transient. Bit 1 = over-voltage (charger fault),
@@ -59,6 +64,14 @@ typedef struct {
     uint16_t ichg_ma;       // configured fast-charge current, mA (0 = unread)
     uint16_t vbatreg_mv;    // configured charge voltage, mV (0 = unread)
     bool     chg_disabled;  // ICHG_CTRL CHG_DIS bit
+    bool     tmr_fault;     // safety timer expired and charging is stopped
+                            // (cleared on USB removal or when charging resumes)
+    uint8_t  tmr_restarts;  // automatic restarts after a timeout, this USB session
+    uint8_t  tmr_faults;    // safety-timer expiries seen since boot
+    // STAT0 live loop bits: what is limiting the charge right now.
+    bool     ilim_active;   // input current limit clamping
+    bool     vindpm_active; // VIN sagging to VINDPM
+    bool     vdppm_active;  // SYS load squeezing the charge current
 
     // ---- charger configuration, re-read every poll ----
     // ilim_ma caps the whole board's draw from VIN, so the cell only gets what
@@ -88,6 +101,13 @@ typedef struct {
 
 // Human-readable forms for /api/status and the LCD.
 const char *power_chg_state_str(chg_state_t s);
+
+// CHG_STAT 0b11 means "done OR stopped" (host disable, safety-timer fault,
+// TS suspend). True only for a genuinely full battery.
+bool power_is_charged(const power_state_t *ps);
+
+// power_chg_state_str() with "done" split into done/paused/timeout/temp.
+const char *power_chg_label(const power_state_t *ps);
 const char *power_ts_zone_str(ts_zone_t z);
 
 // Bring up the I2C bus, probe the charger and gauge, and start the poll task

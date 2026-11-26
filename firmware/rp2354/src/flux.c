@@ -18,12 +18,14 @@ uint8_t __attribute__((aligned(4))) flux_buf[FLUX_BUF_SZ];
 void flux_init(void) { flux_pio_init(); }
 
 uint8_t flux_capture(uint32_t capture_counts, uint32_t cue_ms, bool cue_marker,
-                     uint32_t *len) {
-  spi_link_prepare_busy();
+                     flux_live_fn live, uint32_t *len) {
+  if (!live)
+    spi_link_prepare_busy();
   flux_cap_status_t st = flux_pio_capture(flux_buf, FLUX_BUF_SZ,
                                           capture_counts, cue_ms, cue_marker,
-                                          len);
-  spi_link_end_busy();
+                                          live, len);
+  if (!live)
+    spi_link_end_busy();
   g_diag.flux_reads++; // counts captures (revolutions), not host commands
 
   switch (st) {

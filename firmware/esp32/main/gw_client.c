@@ -179,6 +179,8 @@ bool gw_resync(void)
 // ---- controller diagnostics (GetInfo 0x88) ----
 // Sampled only by the link-owning task; /api/status serves the cached copy.
 static struct gw_diag_counters s_diag;
+static void refresh_linkprof(void);
+static void refresh_capprof(void);
 static bool s_diag_valid;
 static int64_t s_diag_us;
 
@@ -198,6 +200,62 @@ bool gw_refresh_diag(void)
     s_diag = d;
     s_diag_valid = true;
     s_diag_us = esp_timer_get_time();
+    refresh_linkprof();
+    return true;
+}
+
+static struct gw_linkprof s_lprof;
+static bool s_lprof_valid;
+static int64_t s_lprof_us;
+
+static void refresh_linkprof(void)
+{
+    uint8_t sub = GETINFO_GW_LINKPROF;
+    send_cmd(CMD_GET_INFO, &sub, 1);
+    int ack = read_ack(CMD_GET_INFO, 300);
+    if (ack < 0) return;
+    // A nack carries no payload; GetInfo replies always carry 32 bytes.
+    struct gw_linkprof p;
+    if (ack != ACK_OKAY) return;
+    if (link_read((uint8_t *)&p, sizeof(p), 300) != sizeof(p)) {
+        link_flush_rx();
+        return;
+    }
+    s_lprof = p;
+    s_lprof_valid = true;
+    s_lprof_us = esp_timer_get_time();
+    refresh_capprof();
+}
+
+static struct gw_capprof s_cprof;
+static bool s_cprof_valid;
+
+static void refresh_capprof(void)
+{
+    uint8_t sub = GETINFO_GW_CAPPROF;
+    send_cmd(CMD_GET_INFO, &sub, 1);
+    if (read_ack(CMD_GET_INFO, 300) != ACK_OKAY) return;
+    struct gw_capprof p;
+    if (link_read((uint8_t *)&p, sizeof(p), 300) != sizeof(p)) {
+        link_flush_rx();
+        return;
+    }
+    s_cprof = p;
+    s_cprof_valid = true;
+}
+
+bool gw_get_capprof(struct gw_capprof *out)
+{
+    if (!s_cprof_valid) return false;
+    *out = s_cprof;
+    return true;
+}
+
+bool gw_get_linkprof(struct gw_linkprof *out, uint32_t *age_ms)
+{
+    if (!s_lprof_valid) return false;
+    if (out) *out = s_lprof;
+    if (age_ms) *age_ms = (uint32_t)((esp_timer_get_time() - s_lprof_us) / 1000);
     return true;
 }
 

@@ -109,6 +109,14 @@ bool disk_image_read(uint32_t lba, uint8_t *buf, uint32_t count)
     return true;
 }
 
+void disk_image_invalidate(uint32_t lba, uint32_t count)
+{
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    for (uint32_t i = lba; i < lba + count && i < TOTAL_SECTORS; i++)
+        bit_clr(s_valid, i);
+    xSemaphoreGive(s_lock);
+}
+
 bool disk_image_write(uint32_t lba, const uint8_t *buf, uint32_t count)
 {
     if (lba + count > TOTAL_SECTORS) return false;
@@ -222,7 +230,19 @@ const char *disk_get_detail(void)             { return (const char *)s_detail; }
 
 // Written only by the gw task; readers tolerate a stale value, so no lock.
 static uint8_t s_trackmap[TOTAL_TRACKS];
-void disk_trackmap_reset(void){ memset(s_trackmap, TRK_UNREAD, sizeof s_trackmap); }
+static uint8_t s_margin[TOTAL_TRACKS];
+void disk_trackmap_reset(void)
+{
+    memset(s_trackmap, TRK_UNREAD, sizeof s_trackmap);
+    memset(s_margin, DISK_MARGIN_NONE, sizeof s_margin);
+}
+void disk_margin_set(uint8_t cyl, uint8_t head, int margin)
+{
+    if (cyl < DISK_CYLS && head < DISK_HEADS)
+        s_margin[(uint32_t)cyl * DISK_HEADS + head] =
+            (uint8_t)(margin < 0 ? 0 : margin > 100 ? 100 : margin);
+}
+const uint8_t *disk_margins(void){ return s_margin; }
 void disk_trackmap_set(uint8_t cyl, uint8_t head, track_state_t st)
 {
     if (cyl < DISK_CYLS && head < DISK_HEADS)

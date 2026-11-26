@@ -46,27 +46,76 @@ static inline int raw_get(uint32_t i)
 }
 
 // -------- PLL: flux intervals -> raw cells --------
-static uint32_t pll_to_raw(const uint32_t *ticks, size_t n, uint32_t sample_freq)
+// Margin histogram: |phase error| in 0.01-cell bins, 0..0.50 (see mfm_result_t).
+#define MARGIN_BINS 51
+
+// Cells go into a 64-bit accumulator and out to s_raw 32 at a time, MSB first
+// (the layout raw_get() reads): far cheaper than a read-modify-write per bit.
+// `hist` (MARGIN_BINS, zeroed by the caller) is filled if non-NULL.
+static uint32_t pll_to_raw(const uint32_t *ticks, size_t n, uint32_t sample_freq,
+                           uint32_t *hist)
 {
     // float only: the S3 does double in software, and this runs per transition.
     float nominal = (float)(sample_freq ? sample_freq : 72000000u) / MFM_CELL_HZ;
     float cell = nominal;
     const float lo = nominal * 0.85f, hi = nominal * 1.15f;
-    uint32_t out = 0;
+    static const float inv_n[9] = { 0, 1.0f, 1 / 2.0f, 1 / 3.0f, 1 / 4.0f,
+                                    1 / 5.0f, 1 / 6.0f, 1 / 7.0f, 1 / 8.0f };
+    uint64_t acc = 0;
+    int      nacc = 0;                    // bits waiting in acc (< 32 between steps)
+    uint32_t out = 0;                     // bits produced
 
-    for (size_t i = 0; i < n && out < MAX_RAW_BITS; i++) {
-        int cells = (int)((float)ticks[i] / cell + 0.5f);
+    for (size_t i = 0; i < n; i++) {
+        float t = (float)ticks[i];
+        float x = t / cell;
+        int cells = (int)(x + 0.5f);
         if (cells < 1) cells = 1;
         if (cells > 8) cells = 8;              // dropouts
-        for (int z = 0; z < cells - 1 && out < MAX_RAW_BITS; z++) raw_set(out++, 0);
-        if (out < MAX_RAW_BITS) raw_set(out++, 1);
+        if (out + (uint32_t)cells > MAX_RAW_BITS) break;
+        if (hist) {
+            float e = x - (float)cells;
+            if (e < 0) e = -e;
+            int b = (cells >= 2 && cells <= 4) ? (int)(e * 100.0f + 0.5f) : MARGIN_BINS - 1;
+            hist[b < MARGIN_BINS ? b : MARGIN_BINS - 1]++;
+        }
+        // cells-1 zeros then a one.
+        acc = (acc << cells) | 1u;
+        nacc += cells;
+        out  += (uint32_t)cells;
+        if (nacc >= 32) {
+            uint32_t w = (uint32_t)(acc >> (nacc - 32));
+            uint8_t *d = &s_raw[(out - (uint32_t)nacc) >> 3];
+            d[0] = (uint8_t)(w >> 24); d[1] = (uint8_t)(w >> 16);
+            d[2] = (uint8_t)(w >> 8);  d[3] = (uint8_t)w;
+            nacc -= 32;
+            acc &= nacc ? ((1ull << nacc) - 1) : 0;
+        }
         // Nudge the cell estimate toward the observed spacing, within +/-15%.
-        float err = (float)ticks[i] / cells - cell;
+        float err = t * inv_n[cells] - cell;
         cell += err * 0.15f;
         if (cell < lo) cell = lo;
         if (cell > hi) cell = hi;
     }
+    // The tail, bit by bit.
+    for (int k = nacc - 1; k >= 0; k--)
+        raw_set(out - 1 - (uint32_t)k, (int)((acc >> k) & 1u));
     return out;
+}
+
+// 100 * (0.5 - p99.9 error) / 0.5 from the histogram (see mfm_result_t).
+static int margin_from_hist(const uint32_t *hist)
+{
+    uint32_t total = 0;
+    for (int b = 0; b < MARGIN_BINS; b++) total += hist[b];
+    if (!total) return 0;
+    uint32_t tail = total / 1000, seen = 0;   // the worst 0.1%
+    int b = MARGIN_BINS - 1;
+    for (; b > 0; b--) {
+        seen += hist[b];
+        if (seen > tail) break;
+    }
+    int m = (50 - b) * 2;                     // bin b = b/100 of a cell
+    return m < 0 ? 0 : m > 100 ? 100 : m;
 }
 
 // One byte from 16 raw cells; data bits are the odd cells.
@@ -100,7 +149,11 @@ void mfm_decode_track(const uint32_t *ticks, size_t ticks_len,
 #if GW_PROFILE
     int64_t pll_t0 = esp_timer_get_time();
 #endif
-    uint32_t nbits = pll_to_raw(ticks, ticks_len, ctx->sample_freq);
+    static uint32_t hist[MARGIN_BINS];
+    if (ctx->want_margin) memset(hist, 0, sizeof hist);
+    uint32_t nbits = pll_to_raw(ticks, ticks_len, ctx->sample_freq,
+                                ctx->want_margin ? hist : NULL);
+    if (ctx->want_margin) res->margin = margin_from_hist(hist);
 #if GW_PROFILE
     g_mfm_pll_us += (uint64_t)(esp_timer_get_time() - pll_t0);
 #endif
@@ -166,17 +219,21 @@ void mfm_decode_track(const uint32_t *ticks, size_t ticks_len,
             if (have_id) {
                 if (id_cyl == ctx->exp_cyl && id_head == ctx->exp_head) {
                     uint32_t lba = disk_lba(id_cyl, id_head, id_sec);
+                    bool stale = false;
                     if (!ctx->verify_only) {
                         disk_image_put(lba, data, ok);
                     } else if (ok && ctx->verify_compare) {
                         static uint8_t want[SECTOR_SIZE];
                         if (!disk_image_read(lba, want, 1) ||
-                            memcmp(want, data, SECTOR_SIZE) != 0)
+                            memcmp(want, data, SECTOR_SIZE) != 0) {
                             ok = false;
+                            stale = true;
+                        }
                     }
                     if (!recovered_mask[id_sec]) {
                         recovered_mask[id_sec] = 1;
                         if (ok) res->sectors_ok++; else res->sectors_bad++;
+                        if (stale) res->sectors_stale++;
                     }
                 } else if (!warned_mismatch) {
                     // Mis-seek: never store sectors from the wrong track.

@@ -55,6 +55,8 @@ enum gw_getinfo_sub {
     GETINFO_CURRENT_DRIVE = 7,
     GETINFO_GW_DIAG       = 0x88, // ours: controller link/proto counters
     GETINFO_GW_HEALTH     = 0x89, // ours: die temperature + uptime
+    GETINFO_GW_LINKPROF   = 0x8A, // ours: SPI link profile (speed-up phase 2a)
+    GETINFO_GW_CAPPROF    = 0x8B, // ours: capture profile (speed-up phase 3)
 };
 
 // GETINFO_GW_DIAG payload: the first eight counters of the controller's
@@ -87,6 +89,32 @@ struct gw_health {
 };
 #pragma pack(pop)
 _Static_assert(sizeof(struct gw_health) == 32, "gw_health must be 32 bytes");
+
+// GETINFO_GW_LINKPROF payload: the controller's free-running link profile
+// (spi_link_prof_t in firmware/rp2354/src/transport_spi.h). Older controllers
+// nack it.
+#pragma pack(push, 1)
+struct gw_linkprof {
+    uint32_t isr_n, isr_us_sum, isr_us_max;  // CS-rise ISR count / time / worst
+    uint32_t tx_frames, tx_bytes;            // payload frames it built, bytes
+    uint32_t lim_queue;    // granted frames cut short by what it had queued
+    uint32_t lim_credit;   // ... by our credit
+    uint32_t win_full;     // header-only: both window slots in flight
+};
+#pragma pack(pop)
+_Static_assert(sizeof(struct gw_linkprof) == 32, "gw_linkprof must be 32 bytes");
+
+// GETINFO_GW_CAPPROF payload (flux_cap_prof_t in firmware/rp2354/src/flux_pio.h).
+#pragma pack(push, 1)
+struct gw_capprof {
+    uint32_t captures, overflows;
+    uint32_t ring_hiwater;            // most samples waiting in the 512-word ring
+    uint32_t min_len, live_bytes;     // shortest capture this job; bytes sent while capturing
+    uint32_t tail_bytes;              // sent after the capture
+    uint32_t last_len, min_len_us;    // last capture's length; the shortest's duration
+};
+#pragma pack(pop)
+_Static_assert(sizeof(struct gw_capprof) == 32, "gw_capprof must be 32 bytes");
 
 // GetInfo(FIRMWARE) payload (upstream struct gw_info).
 #pragma pack(push, 1)

@@ -11,6 +11,7 @@
 #include "freertos/semphr.h"
 #include "op_queue.h"
 #include "esp_log.h"
+#include "nvs.h"
 #include "esp_timer.h"
 #include "esp_system.h"
 #include "ota.h"
@@ -24,6 +25,7 @@ static opq_t             s_ops;
 static SemaphoreHandle_t s_wake;
 static portMUX_TYPE      s_ops_mux = portMUX_INITIALIZER_UNLOCKED;
 static volatile int      s_running = -1;
+static volatile bool     s_cancel;         // ui_cancel(): stop the running op
 
 // Active-low buttons. Short actions fire on release (so a long press doesn't
 // also fire one); long actions fire as soon as the hold threshold passes.
@@ -51,12 +53,37 @@ static volatile bool s_chord_done;
 
 // Idle auto-off (on battery only).
 static int64_t s_activity_us;
-static bool    s_autooff_en = true;
+static bool    s_autooff_en = true;      // runtime: off during the setup portal
+static bool    s_autooff_user = true;    // the user's setting, NVS "ui"/"autooff"
 static volatile int s_autooff_left = -1;    // seconds, only in the warning window
 static volatile int s_autooff_total = -1;   // seconds until off, -1 = not running
 
 void ui_activity(void) { s_activity_us = esp_timer_get_time(); }
 void ui_set_autooff_enabled(bool en) { s_autooff_en = en; ui_activity(); }
+
+#define UI_NVS_NS "ui"
+static void autooff_user_load(void)
+{
+    nvs_handle_t h;
+    uint8_t v = 1;
+    if (nvs_open(UI_NVS_NS, NVS_READONLY, &h) != ESP_OK) return;   // never set: on
+    if (nvs_get_u8(h, "autooff", &v) == ESP_OK) s_autooff_user = v != 0;
+    nvs_close(h);
+}
+
+void ui_set_autooff_user(bool on)
+{
+    s_autooff_user = on;
+    ui_activity();                      // the 5 minutes restart if it's back on
+    nvs_handle_t h;
+    if (nvs_open(UI_NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_u8(h, "autooff", on ? 1 : 0);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+    ESP_LOGI(TAG, "auto-off %s", on ? "enabled" : "disabled");
+}
+bool ui_autooff_user(void) { return s_autooff_user; }
 int  ui_chord_secs_left(void)   { return s_chord_done ? 0 : s_chord_left; }
 bool ui_chord_fired(void)       { return s_chord_done; }
 int  ui_autooff_secs_left(void) { return s_autooff_left; }
@@ -76,7 +103,7 @@ static void autooff_poll(void)
     int64_t now = esp_timer_get_time();
     power_state_t ps;
     bool on_batt = power_get(&ps) && !ps.usb_present;
-    if (!s_autooff_en || !on_batt || busy() || !s_activity_us) {
+    if (!s_autooff_en || !s_autooff_user || !on_batt || busy() || !s_activity_us) {
         s_activity_us = now;                // the 5 minutes start from here
         s_autooff_left = -1;
         s_autooff_total = -1;
@@ -102,7 +129,8 @@ static void chord_poll(void)
     if (!both) { s_chord_t0 = 0; s_chord_left = -1; return; }
     // Never in the middle of writing a disk.
     int op = ui_running_op();
-    if (op == UI_OP_WRITE_DISK || op == UI_OP_COMMIT || op == UI_OP_WTEST) return;
+    if (op == UI_OP_WRITE_DISK || op == UI_OP_COMMIT || op == UI_OP_WTEST ||
+        op == UI_OP_TEST || op == UI_OP_TEST_QUICK) return;
     s_btn[BTN_SAVEALL].swallow = s_btn[BTN_DISPLAY].swallow = 1;
     if (!s_chord_t0) {
         s_chord_t0 = now;
@@ -229,6 +257,7 @@ static void ui_task(void *arg)
 void ui_init(void)
 {
     opq_init(&s_ops, UI_OP_N);
+    autooff_user_load();
     s_wake = xSemaphoreCreateBinary();
     lastoff_boot();     // read + clear why the board last went off
 
@@ -264,14 +293,16 @@ bool ui_wait_for_op(int *op, TickType_t timeout)
     for (;;) {
         portENTER_CRITICAL(&s_ops_mux);
         bool got = opq_pop(&s_ops, op);
-        if (got) s_running = *op;
+        if (got) { s_running = *op; s_cancel = false; }
         portEXIT_CRITICAL(&s_ops_mux);
         if (got) return true;
         if (xSemaphoreTake(s_wake, timeout) != pdTRUE) return false;
     }
 }
 
-void ui_op_done(void) { s_running = -1; }
+void ui_op_done(void) { s_running = -1; s_cancel = false; }
+void ui_cancel(void)   { if (s_running >= 0) s_cancel = true; }
+bool ui_cancelled(void) { return s_cancel; }
 int  ui_running_op(void) { return s_running; }
 
 uint32_t ui_queued_mask(void)
@@ -288,7 +319,8 @@ const char *ui_op_name(int op)
         [UI_OP_READ] = "read",       [UI_OP_WTEST] = "wtest",
         [UI_OP_COMMIT] = "commit",   [UI_OP_SAVEALL] = "save",
         [UI_OP_SAVEALL_FORCE] = "save", [UI_OP_RETRY] = "retry",
-        [UI_OP_WRITE_DISK] = "write",
+        [UI_OP_WRITE_DISK] = "write", [UI_OP_TEST] = "test",
+        [UI_OP_TEST_QUICK] = "test", [UI_OP_HEALTH] = "health",
     };
     return (op >= 0 && op < UI_OP_N) ? names[op] : "";
 }

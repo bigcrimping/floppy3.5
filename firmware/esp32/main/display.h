@@ -25,6 +25,10 @@ void display_note_saved(const char *name);
 // a SAVE did nothing. Cleared by display_note_saved(NULL).
 void display_note(const char *text);
 
+// Override the progress screen's position line ("<verb> cc HDh") for a job
+// that passes over the disk more than once (the disk test). NULL = default.
+void display_set_job_pos(const char *verb, int track);
+
 // DISP: next page (disk -> WiFi -> battery -> SD -> system -> disk). Back to
 // the disk page when the disk state changes, or two minutes after a press.
 void display_next_page(void);

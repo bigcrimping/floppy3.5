@@ -30,6 +30,22 @@ typedef struct {
 } spi_link_stats_t;
 const spi_link_stats_t *spi_link_stats(void);
 
+// GETINFO_GW_LINKPROF payload: free-running counters (the host diffs two
+// reads). Must match struct gw_linkprof in the ESP's gw_proto.h.
+typedef struct __attribute__((packed)) {
+  uint32_t isr_n;        // CS-rise ISRs
+  uint32_t isr_us_sum;   // time spent in them
+  uint32_t isr_us_max;   // longest one (must stay under the master's gap)
+  uint32_t tx_frames;    // new payload frames built
+  uint32_t tx_bytes;     // their payload bytes
+  uint32_t lim_queue;    // new frames cut short (or empty) by what was queued
+  uint32_t lim_credit;   // ... by the master's credit
+  uint32_t win_full;     // header-only frames because both window slots were
+                         // in flight with data still queued
+} spi_link_prof_t;
+_Static_assert(sizeof(spi_link_prof_t) == 32, "linkprof must be 32 bytes");
+const spi_link_prof_t *spi_link_prof(void);
+
 // The ESP's 5 V drive rail (GWSPI_FLAG_RAIL): 1 on, 0 off, -1 no ESP frame
 // seen since boot.
 int spi_rail_state(void);

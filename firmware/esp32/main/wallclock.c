@@ -11,6 +11,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "driver/i2c_master.h"
 
 static const char *TAG = "rtc";
@@ -144,6 +145,10 @@ static bool write_time(const struct tm *t)
 
 // ---- one-time EEPROM configuration ----
 
+// After a one-byte EEPROM read command: the manual asks for 1 ms before
+// polling EEbusy (the read takes ~1.4 ms), or EEDATA can still be stale.
+static void ee_read_settle(void) { vTaskDelay(pdMS_TO_TICKS(2)); }
+
 static bool eebusy_wait(int tmo_ms)
 {
     for (int i = 0; i < tmo_ms; i += 10) {
@@ -232,7 +237,7 @@ bool wallclock_ee_read(uint8_t off, uint8_t *buf, size_t n)
     for (size_t i = 0; ok && i < n; i++) {
         ok = wr8(REG_EEPROM_ADDR, (uint8_t)(off + i)) &&
              wr8(REG_EEPROM_CMD, 0x00) && wr8(REG_EEPROM_CMD, EEPROM_CMD_READ) &&
-             eebusy_wait(50) && rd(REG_EEPROM_DATA, &buf[i], 1);
+             (ee_read_settle(), eebusy_wait(50)) && rd(REG_EEPROM_DATA, &buf[i], 1);
     }
     ee_end(had_eerd);
     return ok;
@@ -247,7 +252,7 @@ bool wallclock_ee_write(uint8_t off, const uint8_t *buf, size_t n)
         uint8_t cur;
         ok = wr8(REG_EEPROM_ADDR, (uint8_t)(off + i)) &&
              wr8(REG_EEPROM_CMD, 0x00) && wr8(REG_EEPROM_CMD, EEPROM_CMD_READ) &&
-             eebusy_wait(50) && rd(REG_EEPROM_DATA, &cur, 1);
+             (ee_read_settle(), eebusy_wait(50)) && rd(REG_EEPROM_DATA, &cur, 1);
         if (!ok || cur == buf[i]) continue;
         ok = wr8(REG_EEPROM_DATA, buf[i]) &&
              wr8(REG_EEPROM_CMD, 0x00) && wr8(REG_EEPROM_CMD, EEPROM_CMD_WRITE);
@@ -307,21 +312,49 @@ void wallclock_init(void)
     ensure_backup_switchover();
 }
 
+// Writing seconds restarts the RTC's 1 Hz prescaler at the moment of the
+// write, so it must land on a whole-second boundary or the RTC lags by the
+// dropped fraction (up to ~1 s). wallclock_store() runs in the SNTP callback
+// (lwIP thread), which must not sleep, so a one-shot timer does the write at
+// the next second. The write itself is a few ms of I2C.
+static esp_timer_handle_t s_store_timer;
+
+static void store_at_second(void *arg)
+{
+    (void)arg;
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    time_t now = tv.tv_sec + (tv.tv_usec >= 500000 ? 1 : 0);   // nearest second
+    struct tm t;
+    gmtime_r(&now, &t);
+    if (!write_time(&t)) {
+        ESP_LOGW(TAG, "failed to store time into RTC");
+        return;
+    }
+    ESP_LOGI(TAG, "RTC set from network: %04d-%02d-%02d %02d:%02d:%02d UTC "
+                  "(written %ld us past the second)",
+             t.tm_year + 1900, t.tm_mon + 1, t.tm_mday,
+             t.tm_hour, t.tm_min, t.tm_sec,
+             (long)(tv.tv_usec >= 500000 ? tv.tv_usec - 1000000 : tv.tv_usec));
+}
+
 bool wallclock_store(void)
 {
     s_src = WALLCLOCK_SRC_SNTP;
     if (!s_present) return false;
 
-    time_t now = time(NULL);
-    struct tm t;
-    gmtime_r(&now, &t);
-    if (!write_time(&t)) {
-        ESP_LOGW(TAG, "failed to store time into RTC");
-        return false;
+    if (!s_store_timer) {
+        const esp_timer_create_args_t a = { .callback = store_at_second, .name = "rtc_store" };
+        if (esp_timer_create(&a, &s_store_timer) != ESP_OK) {
+            ESP_LOGW(TAG, "RTC store timer unavailable — writing unaligned");
+            store_at_second(NULL);
+            return true;
+        }
     }
-    ESP_LOGI(TAG, "RTC set from network: %04d-%02d-%02d %02d:%02d:%02d UTC",
-             t.tm_year + 1900, t.tm_mon + 1, t.tm_mday,
-             t.tm_hour, t.tm_min, t.tm_sec);
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    esp_timer_stop(s_store_timer);                   // a re-sync replaces a pending one
+    esp_timer_start_once(s_store_timer, 1000000ULL - (uint64_t)tv.tv_usec);
     return true;
 }
 

@@ -14,7 +14,7 @@ extern const transport_backend_t transport_spi_backend;
 
 int main(void) {
   // Keep the default 150 MHz clock tree. The PL022 slave needs
-  // SSPCLK >= 12 x SCLK (sets the 8 MHz link speed), and the 25 MHz flux tick
+  // SSPCLK >= 12 x SCLK (caps the link at ~12.5 MHz; it runs at 11.43), and the 25 MHz flux tick
   // is derived from 150 MHz by integer PIO dividers.
 
   tusb_init(); // no stdio-over-USB: CDC0/CDC1 are ours

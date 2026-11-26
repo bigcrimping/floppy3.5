@@ -33,6 +33,10 @@ const char *gw_last_error(void);
 bool gw_refresh_diag(void);
 bool gw_get_diag(struct gw_diag_counters *out, uint32_t *age_ms);
 bool gw_get_health(struct gw_health *out, uint32_t *age_ms);
+// Controller link profile, refreshed with the diag counters after each drive
+// session. False if never read (or the controller lacks GetInfo 0x8A).
+bool gw_get_linkprof(struct gw_linkprof *out, uint32_t *age_ms);
+bool gw_get_capprof(struct gw_capprof *out);
 
 // One idle tick: refresh health and, if the controller has gone silent,
 // reset it and relink. Blocks for seconds when it does. gw task only, between

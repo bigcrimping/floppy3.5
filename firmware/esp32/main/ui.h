@@ -10,6 +10,10 @@ void ui_init(void);
 void ui_activity(void);
 // Auto-off is skipped while disabled (the WiFi setup portal).
 void ui_set_autooff_enabled(bool en);
+// The user's auto-off setting (web SERVICE panel), kept in NVS across
+// reboots; on by default. Off means the board stays on until switched off.
+void ui_set_autooff_user(bool on);
+bool ui_autooff_user(void);
 // For the LCD: seconds left on the SAVE+DISP WiFi reset (-1 = not held; 0 =
 // done, rebooting), and on the auto-off warning (-1 = not counting down).
 int  ui_chord_secs_left(void);
@@ -27,6 +31,11 @@ int  ui_autooff_left_s(void);
 //                   image; a full read if there is nothing to merge into
 //   WRITE_DISK    - write every track from the staged image
 //                   (disk_stage_set()), or from the loaded one if none is staged
+//   TEST          - destructive disk test: write + read back every track with
+//                   three patterns, re-read all, leave the disk blank FAT12
+//   TEST_QUICK    - the same with two patterns (random, format), no re-read
+//   HEALTH        - read-only health check: every track read twice, graded,
+//                   timing margin measured; loads the image as a full read
 enum {
     UI_OP_READ = 0,
     UI_OP_WTEST = 1,
@@ -35,6 +44,9 @@ enum {
     UI_OP_SAVEALL_FORCE = 4,
     UI_OP_RETRY = 5,
     UI_OP_WRITE_DISK = 6,
+    UI_OP_TEST = 7,
+    UI_OP_TEST_QUICK = 8,
+    UI_OP_HEALTH = 9,
     UI_OP_N
 };
 
@@ -47,6 +59,11 @@ void ui_trigger_op(int op);
 // finished it.
 bool ui_wait_for_op(int *op, TickType_t timeout);
 void ui_op_done(void);
+
+// Ask the running op to stop at its next track (web CANCEL). Cleared when the
+// next op starts. Long jobs (read, write, test, health) poll ui_cancelled().
+void ui_cancel(void);
+bool ui_cancelled(void);
 
 // For /api/status and the LCD: the op being run (-1 = none), a bit per op
 // type still waiting, and a short name for an op.

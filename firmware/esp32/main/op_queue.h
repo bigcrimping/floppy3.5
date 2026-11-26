@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define OPQ_MAX 8   // op types, numbered 0..OPQ_MAX-1
+#define OPQ_MAX 16  // op types, numbered 0..OPQ_MAX-1 (<= 32: opq_mask)
 
 typedef struct {
     uint8_t ops[OPQ_MAX];   // oldest first

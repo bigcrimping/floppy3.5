@@ -46,3 +46,8 @@ idf_component_register(
         esp_partition   # OTA slot lookup
         mbedtls         # SHA-256 (hardware-accelerated on the S3) — sd_index.c
 )
+
+# The per-transition decode and encode loops run ~110k times a track: build
+# them optimised even in a debug (-Og) build. Later flags win.
+set_source_files_properties(mfm_decode.c flux_decode.c mfm_encode.c crc16.c link_spi.c
+    PROPERTIES COMPILE_OPTIONS "-O2")

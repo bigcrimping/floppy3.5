@@ -36,6 +36,7 @@ static const char *TAG = "link";
 // ---- state ----
 
 static spi_device_handle_t s_dev;
+static int s_clk_khz;         // the clock the driver actually chose
 static bool s_up;             // SYNC handshake completed
 static bool s_bus_live;       // we own an spi_bus_initialize to undo
 static bool s_isr_live;       // DRDY handler installed
@@ -67,6 +68,10 @@ static struct {
     uint32_t hcrc_fail, pcrc_fail, retransmits, dups, seq_err;
     uint32_t sync_resets, drdy_wakes, credit_stalls;
 } s_st;
+
+static link_prof_t s_prof;
+
+void link_prof_get(link_prof_t *out) { *out = s_prof; }
 
 // ---- small helpers ----
 
@@ -137,6 +142,7 @@ typedef struct {
     bool sync;
     bool usb;      // a USB host has the controller
     int  popped;   // tx-window slices retired by this frame's ack
+    int  rx_len;   // new payload bytes taken in
 } rxinfo_t;
 
 // Header fields are used whenever the header CRC is valid; payload only when
@@ -187,6 +193,7 @@ static void parse_frame(const uint8_t *f, size_t clocked, rxinfo_t *ri)
             ring_push(pl, len);
             s_rx_last = exp;
             s_st.bytes_rx += len;
+            ri->rx_len = len;
         } else {
             s_st.credit_stalls++;       // not acked, so the slave resends
         }
@@ -203,6 +210,7 @@ static esp_err_t do_exchange(const uint8_t *pl, uint16_t plen, uint8_t seq,
                              uint16_t avail_after, bool sync, rxinfo_t *ri)
 {
     memset(ri, 0, sizeof *ri);
+    int64_t p0 = esp_timer_get_time();
 
     // Grant rule (§2.1): the slave sends at most the avail it last advertised,
     // so clock 12 + max(our len, grant) (+CRC), rounded up to 4.
@@ -230,7 +238,9 @@ static esp_err_t do_exchange(const uint8_t *pl, uint16_t plen, uint8_t seq,
     }
     if (T > used) memset(f + used, 0, T - used);
 
+    int64_t p1 = esp_timer_get_time();
     gap_wait();
+    int64_t p2 = esp_timer_get_time();
     spi_transaction_t t = {
         .length    = T * 8,
         .tx_buffer = s_txf,
@@ -240,11 +250,25 @@ static esp_err_t do_exchange(const uint8_t *pl, uint16_t plen, uint8_t seq,
     esp_err_t e = (T <= 64) ? spi_device_polling_transmit(s_dev, &t)
                             : spi_device_transmit(s_dev, &t);
     s_cs_up_us = esp_timer_get_time();
+    s_prof.build_us += (uint64_t)(p1 - p0);
+    s_prof.gap_us   += (uint64_t)(p2 - p1);
+    s_prof.xfer_us  += (uint64_t)(s_cs_up_us - p2);
     if (e != ESP_OK) return e;
     s_st.exchanges++;
     s_st.bytes_tx += plen;
 
     parse_frame(s_rxf, T, ri);
+    s_prof.parse_us += (uint64_t)(esp_timer_get_time() - s_cs_up_us);
+    s_prof.ex++;
+    s_prof.clocked_bytes += T;
+    if (L == 0) s_prof.ex_hdr++;
+    if (L >= GWSPI_PAYLOAD_MAX) s_prof.ex_full++;
+    if (plen) { s_prof.tx_frames++; s_prof.tx_bytes += plen; }
+    if (ri->rx_len) {
+        s_prof.rx_frames++;
+        s_prof.rx_bytes += (uint64_t)ri->rx_len;
+        if (ri->rx_len < GWSPI_PAYLOAD_MAX / 2) s_prof.rx_small++;
+    }
     return ESP_OK;
 }
 
@@ -333,6 +357,7 @@ static esp_err_t hw_init(void)
     };
     e = spi_bus_add_device(GW_LINK_SPI_HOST, &dev, &s_dev);
     if (e != ESP_OK) { teardown(); return e; }
+    spi_device_get_actual_freq(s_dev, &s_clk_khz);
 
     gpio_config_t drdy = {
         .pin_bit_mask = 1ULL << GW_SPI_DRDY_GPIO,
@@ -405,7 +430,9 @@ int link_read(uint8_t *dst, size_t want, int to_ms)
             int64_t rem_ms = (dl - now + 999) / 1000;
             TickType_t tk = pdMS_TO_TICKS(rem_ms > DRDY_BACKSTOP_MS ? DRDY_BACKSTOP_MS
                                                                    : rem_ms);
+            int64_t w0 = esp_timer_get_time();
             ulTaskNotifyTake(pdTRUE, tk ? tk : 1);
+            s_prof.drdy_us += (uint64_t)(esp_timer_get_time() - w0);
         }
         rxinfo_t ri;
         if (do_exchange(NULL, 0, poll_seq(), 0, false, &ri) == ESP_OK && ri.hdr_ok) {
@@ -413,7 +440,9 @@ int link_read(uint8_t *dst, size_t want, int to_ms)
             got += ring_pop(dst + got, want - got);
         } else {
             // Transient: back off and retry within the deadline.
+            int64_t b0 = esp_timer_get_time();
             vTaskDelay(pdMS_TO_TICKS(backoff_ms));
+            s_prof.backoff_us += (uint64_t)(esp_timer_get_time() - b0);
             backoff_ms = backoff_ms * 2 > BACKOFF_MAX_MS ? BACKOFF_MAX_MS : backoff_ms * 2;
         }
     }
@@ -496,7 +525,9 @@ int link_write(const uint8_t *src, size_t len)
         } else {
             if (s_nfly) resend = 0;
             no_news = 0;
+            int64_t b0 = esp_timer_get_time();
             vTaskDelay(pdMS_TO_TICKS(backoff_ms));
+            s_prof.backoff_us += (uint64_t)(esp_timer_get_time() - b0);
             backoff_ms = backoff_ms * 2 > BACKOFF_MAX_MS ? BACKOFF_MAX_MS : backoff_ms * 2;
         }
     }
@@ -540,12 +571,12 @@ const char *link_stats_str(void)
 {
     static char b[176];
     snprintf(b, sizeof b,
-             "ex=%u tx=%u rx=%u crc=%u/%u rt=%u dup=%u seq=%u sync=%u drdy=%u cst=%u",
+             "ex=%u tx=%u rx=%u crc=%u/%u rt=%u dup=%u seq=%u sync=%u drdy=%u cst=%u clk=%dk",
              (unsigned)s_st.exchanges, (unsigned)s_st.bytes_tx, (unsigned)s_st.bytes_rx,
              (unsigned)s_st.hcrc_fail, (unsigned)s_st.pcrc_fail,
              (unsigned)s_st.retransmits, (unsigned)s_st.dups, (unsigned)s_st.seq_err,
              (unsigned)s_st.sync_resets, (unsigned)s_st.drdy_wakes,
-             (unsigned)s_st.credit_stalls);
+             (unsigned)s_st.credit_stalls, s_clk_khz);
     return b;
 }
 

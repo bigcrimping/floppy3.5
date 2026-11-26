@@ -1,7 +1,8 @@
 # Build & run the host tests (no board, no ESP-IDF build system).
 # Usage:  ./build.ps1 [-Tcc <path-to-tcc.exe-or-gcc>] [-Idf <esp-idf path>]
 param(
-    [string]$Tcc = "C:\TEMP\claude\tools\tcc\tcc.exe",
+    # TinyCC (or gcc/clang): -Tcc, else $env:TCC, else tcc from the PATH.
+    [string]$Tcc = $(if ($env:TCC) { $env:TCC } else { "tcc" }),
     [string]$Idf = $(if ($env:IDF_PATH) { $env:IDF_PATH } else { "C:\Espressif\frameworks\esp-idf-v5.2.7" })
 )
 $ErrorActionPreference = "Stop"
@@ -20,7 +21,11 @@ function Build-Run($name, $incs, $srcs) {
     $args = $common + $incs + @("-o", $exe) + $srcs
     Write-Host "[$name] compiling..." -ForegroundColor Cyan
     & $Tcc @args | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "[$name] compile failed ($LASTEXITCODE)" }
+    # A compile failure fails this test, not the run: the rest still build.
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[$name] COMPILE FAILED ($LASTEXITCODE)" -ForegroundColor Red
+        return 1
+    }
     & $exe | Out-Host
     return [int]$LASTEXITCODE
 }
@@ -48,6 +53,13 @@ if (Test-Path "$ff\src\ff.c") {
     New-Item -ItemType Directory -Force -Path $stage | Out-Null
     Copy-Item "$ff\src\ff.c", "$ff\src\ff.h", "$ff\src\diskio.h" $stage -Force
     Copy-Item "$here\ffconf.h" $stage -Force
+    # tcc predefines _WIN32 and ignores -U_WIN32 for its builtins, so ff.h took
+    # its windows.h branch and the FAT tests stopped compiling. Patch the staged
+    # copy (raw bytes, not Set-Content, which re-encodes) onto the C99 branch.
+    $ffh = Join-Path $stage "ff.h"
+    $t = [IO.File]::ReadAllText($ffh)
+    $t = $t.Replace("#if defined(_WIN32)", "#if 0 /* host tests: C99 integer types */")
+    [IO.File]::WriteAllText($ffh, $t)
     # -U_WIN32 makes ff.h take its C99 type branch (DWORD=uint32_t) instead of the
     # windows.h branch. The IDF diskio_impl.h is shadowed by our shim in $shims
     # (tcc/C99 rejects its duplicate DWORD typedef), so $ff\diskio is NOT on the path.

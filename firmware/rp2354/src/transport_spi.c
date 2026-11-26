@@ -87,6 +87,7 @@ static volatile int8_t rail_state = -1;
 static volatile bool rail_dropped; // rail seen off since the last take
 static int ch_rx = -1, ch_tx = -1, ch_m2m = -1;
 static spi_link_stats_t st;
+static spi_link_prof_t prof;
 
 static inline uint16_t get16(const uint8_t *p) {
   return (uint16_t)(p[0] | (p[1] << 8));
@@ -98,7 +99,7 @@ static inline void put16(uint8_t *p, uint16_t v) {
 
 // ---- Copy + CRC ------------------------------------------------------------
 // The ISR must validate, rebuild and re-arm inside the master's
-// inter-transaction gap (GW_SPI_GAP_US, 400 us). Two table CRCs of 4 KB plus
+// inter-transaction gap (GW_SPI_GAP_US, 100 us). Two table CRCs of 4 KB plus
 // two memcpys don't fit, so copy and CRC are fused in one pass through the DMA
 // sniffer (~65 us per 4 KB). If the sniffer fails its init self-test we use
 // the CPU path, which may miss the gap on full frames: that costs a
@@ -417,9 +418,8 @@ static void __not_in_flash_func(build_tx_frame)(void) {
       // avail (so the master clocked a long enough transaction, §2.1) and the
       // master's credit. Retransmits skip the last two: they were checked when
       // first sliced.
-      uint32_t cap = tx_prod - tx_sent;
-      if (cap > GWSPI_PAYLOAD_MAX)
-        cap = GWSPI_PAYLOAD_MAX;
+      uint32_t queued = tx_prod - tx_sent;
+      uint32_t cap = GWSPI_PAYLOAD_MAX;
       if (cap > grant_self)
         cap = grant_self;
       // credit_master was computed before the master took our unacked
@@ -429,9 +429,22 @@ static void __not_in_flash_func(build_tx_frame)(void) {
         inflight += win[j].len;
       uint32_t eff_credit =
           (credit_master > inflight) ? credit_master - inflight : 0;
+      // Profile: which limit cut a granted frame short. Only frames the
+      // master clocked room for (grant_self) count; queued == 0 with nothing
+      // left to send is just idle.
+      if (cap && (tx_prod != tx_sent || tx_prod != tx_acked)) {
+        if (queued < cap && queued <= eff_credit)
+          prof.lim_queue++;
+        else if (eff_credit < cap)
+          prof.lim_credit++;
+      }
       if (cap > eff_credit)
         cap = eff_credit;
+      if (cap > queued)
+        cap = queued;
       if (cap) {
+        prof.tx_frames++;
+        prof.tx_bytes += cap;
         len = (uint16_t)cap;
         seq = tx_next_seq;
         src = tx_sent;
@@ -445,7 +458,9 @@ static void __not_in_flash_func(build_tx_frame)(void) {
         pb_kind = PB_NEW;
       }
     }
-    // else: window full, header-only frame
+    else if (tx_prod != tx_sent) {
+      prof.win_full++; // window full, header-only frame
+    }
   }
 
   // avail counts every undelivered byte, including unacked slices: any of
@@ -499,6 +514,7 @@ static void __not_in_flash_func(spi_cs_irq)(void) {
   if (!(ev & GPIO_IRQ_EDGE_RISE))
     return;
   gpio_acknowledge_irq(PIN_SPI_CS, GPIO_IRQ_EDGE_RISE);
+  uint32_t t_isr = time_us_32();
 
   // The armed frame went out (fully or not); seq/ack recovers it from here.
   pb_kind = PB_NONE;
@@ -534,6 +550,12 @@ static void __not_in_flash_func(spi_cs_irq)(void) {
 
   // 6. DRDY last; it must not change while CS is low. Unacked bytes count.
   gpio_put(PIN_DRDY, !busy_mode && (tx_prod != tx_acked));
+
+  uint32_t dt = time_us_32() - t_isr;
+  prof.isr_n++;
+  prof.isr_us_sum += dt;
+  if (dt > prof.isr_us_max)
+    prof.isr_us_max = dt;
 }
 
 // ---- Bring-up --------------------------------------------------------------
@@ -618,7 +640,7 @@ static inline void drdy_hint(bool level) {
 
 // ---- Busy windows (§2.3) ----
 // Rebuild the armed TX frame from thread context, only while the bus is idle.
-// Wait up to 6 ms for CS high (a max transaction is ~4.1 ms at 8 MHz), then
+// Wait up to 6 ms for CS high (a max transaction is ~4.1 ms at 8 MHz, ~2.9 ms at 11.43), then
 // recheck with IRQs off. On timeout leave the frame alone: busy_mode steers
 // the next ISR build anyway.
 //
@@ -740,6 +762,8 @@ const transport_backend_t *spi_transport_backend(void) {
 }
 
 const spi_link_stats_t *spi_link_stats(void) { return &st; }
+
+const spi_link_prof_t *spi_link_prof(void) { return &prof; }
 
 int spi_rail_state(void) { return rail_state; }
 

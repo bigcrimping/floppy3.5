@@ -52,6 +52,8 @@ enum gw_getinfo_sub {
   GETINFO_CURRENT_DRIVE = 7,
   GETINFO_GW_DIAG = 0x88,   // ours: diag counters
   GETINFO_GW_HEALTH = 0x89, // ours: die temperature + uptime
+  GETINFO_GW_LINKPROF = 0x8A, // ours: SPI link profile (speed-up phase 2a)
+  GETINFO_GW_CAPPROF = 0x8B,  // ours: capture profile (speed-up phase 3)
 };
 
 // GetInfo(FIRMWARE) payload, packed little-endian.

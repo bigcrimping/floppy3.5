@@ -15,3 +15,6 @@ wifi_creds.bin
 
 # Release zips: uploaded to the GitHub Releases page, not committed
 release/
+
+# Personal patterns for tools/release_check.py (never commit)
+tools/private_patterns.txt

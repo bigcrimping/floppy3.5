@@ -30,7 +30,9 @@ target_include_directories(gw_rp2354 PRIVATE
     src                      # tusb_config.h must be visible to TinyUSB
 )
 
-# Build id for diag_version() / the CDC1 'v' banner.
+# Build id for diag_version() / the CDC1 'v' banner: -DGW_BUILD_ID=v2.1.0 for
+# a release, else the git commit.
+if(NOT GW_BUILD_ID)
 execute_process(
     COMMAND git describe --always --dirty
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -38,6 +40,7 @@ execute_process(
     OUTPUT_STRIP_TRAILING_WHITESPACE
     ERROR_QUIET
 )
+endif()
 if(NOT GW_BUILD_ID)
     set(GW_BUILD_ID "dev")
 endif()

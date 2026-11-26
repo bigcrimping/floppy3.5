@@ -102,6 +102,8 @@ static void step_pulse(void) {
   gpio_put(PIN_STEP, 1);
 }
 
+#define RECAL_EXTRA_SETTLE_MS 100
+
 uint8_t drive_seek(int cyl) {
   if (cyl < 0 || cyl > 83)
     return ACK_BAD_CYLINDER;
@@ -117,6 +119,11 @@ uint8_t drive_seek(int cyl) {
       sleep_ms(RECAL_STEP_MS);
     }
     cur_cyl = 0;
+    // A recalibration follows a drive power-up (the ESP switches the 5 V rail
+    // per job). The MPF920 then keeps RDDATA silent ~30 ms past the normal
+    // settle, which cost the first track 2 sectors once reads started
+    // streaming immediately (speed-up phase 3). Once per job, so be generous.
+    sleep_ms(RECAL_EXTRA_SETTLE_MS);
   }
 
   if (cur_cyl != cyl) {

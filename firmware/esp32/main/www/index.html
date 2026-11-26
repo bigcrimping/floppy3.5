@@ -129,6 +129,25 @@
   .sw i { background: var(--ghost); }
   .sw.good i, .sw.bad i { background: var(--ink); }
   .sw.retry i:last-child { background: linear-gradient(0deg, var(--ink) 0 45%, var(--ghost) 45%); }
+  /* MARGIN view: each track fills from the bottom by its timing margin (--m),
+     tracks under the low threshold blink, unmeasured ones stay empty. */
+  .mvrow { display: flex; justify-content: flex-end; max-width: 440px; margin: 8px auto 0; }
+  .mapview { appearance: none; border: 0; background: none; padding: 0; color: var(--ink); font: inherit; letter-spacing: inherit; text-transform: uppercase; cursor: pointer; }
+  .mapview b { font-weight: inherit; padding: 1px 4px 0; }
+  .mapview b.on { background: var(--ink); color: var(--lcd); }
+  .tgrid.mg .cell i { background: linear-gradient(0deg, var(--ink) 0 var(--m, 0%), var(--ghost) var(--m, 0%)); }
+  .tgrid.mg .cell i.none { background: var(--ghost); }
+  .tgrid.mg .cell i.low { outline: 1px solid var(--ink); animation: cellblink .8s steps(1) infinite; }
+  .sw.m100 i { background: var(--ink); }
+  .sw.m60 i { background: linear-gradient(0deg, var(--ink) 0 60%, var(--ghost) 60%); }
+  .sw.m15 i { background: linear-gradient(0deg, var(--ink) 0 15%, var(--ghost) 15%); outline: 1px solid var(--ink); animation: cellblink .8s steps(1) infinite; }
+  .mhist { position: relative; display: flex; gap: 2px; align-items: flex-end; height: 34px; max-width: 440px; margin: 12px auto 0; }
+  .mhist i { flex: 1; background: var(--ink); min-height: 1px; }
+  .mhist i.z { background: var(--ghost); }
+  .mhist .thr { position: absolute; top: -2px; bottom: -2px; width: 0; border-left: 2px dashed var(--ink); }
+  .maxis { position: relative; height: 1.2em; max-width: 440px; margin: 3px auto 0; }
+  .maxis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .maxis span:first-child { transform: none; } .maxis span:last-child { transform: translateX(-100%); }
 
   /* ---- 2 · meters ---- */
   .meters { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -302,11 +321,23 @@
       <div class="lcd"><div class="field tmap" id="diskMap" role="img" aria-label="Floppy read map: 80 cylinders by 2 heads, each track shown by read outcome">
         <div class="hd"><span class="ts">TRACKS<span class="wide"> · HEAD 0 OVER HEAD 1</span></span><span class="ts">CYL 0-79</span></div>
         <div class="tgrid" id="tgrid"></div>
+        <div class="mvrow ts"><button class="mapview" id="mapView" title="Show each track by read outcome, or by its timing margin from the last health check or test">VIEW <b id="mvState" class="on">READ</b><b id="mvMargin">MARGIN</b></button></div>
         <div class="tleg ts" id="mapLegend">
           <span><span class="sw good"><i></i><i></i></span>CLEAN <b id="mcGood">0</b></span>
           <span><span class="sw retry"><i></i><i></i></span>RETRIED <b id="mcRetry">0</b></span>
           <span><span class="sw bad"><i></i><i></i></span>FAILED (BLINKS) <b id="mcBad">0</b></span>
           <span><span class="sw"><i></i><i></i></span>NOT READ <b id="mcUnread">160</b></span>
+        </div>
+        <div class="hidden" id="mgView">
+          <div class="tleg ts" id="mgLegend">
+            <span><span class="sw m100"><i></i><i></i></span>MARGIN <span id="mgHiLbl">50+</span> <b id="mgHi">0</b></span>
+            <span><span class="sw m60"><i></i><i></i></span><span id="mgMidLbl">25-49</span> <b id="mgMid">0</b></span>
+            <span><span class="sw m15"><i></i><i></i></span>UNDER <span id="mgLowLbl">25</span>: LOW, BLINKS <b id="mgLow">0</b></span>
+            <span><span class="sw"><i></i><i></i></span>NOT MEASURED <b id="mgNone">160</b></span>
+          </div>
+          <div class="mhist" id="mgHist" aria-hidden="true"></div>
+          <div class="maxis ts" id="mgAxis"></div>
+          <div class="ts" id="mgSum" style="margin-top:8px">&nbsp;</div>
         </div>
       </div></div>
     </div>
@@ -400,6 +431,15 @@
         <div class="ts" id="snMsg">Stored in the RTC's EEPROM — survives battery removal and firmware reflashes.</div>
       </div></div>
       <div class="lcd"><div class="field">
+        <div class="ts">AUTO POWER-OFF</div>
+        <div class="snrow">
+          <div class="fwnow" id="aoNow">—</div>
+          <span></span>
+          <button class="key sm" id="aoGo" disabled style="color:var(--ink)"><i><b>&#9675;</b><span class="led"></span></i><span class="lbl">TURN OFF</span></button>
+        </div>
+        <div class="ts" id="aoMsg">On battery, the board switches itself off after 5 minutes idle. Turn it off to keep it on until you switch it off. Saved across restarts.</div>
+      </div></div>
+      <div class="lcd"><div class="field">
         <div class="ts">FIRMWARE UPDATE</div>
         <div class="fwrow">
           <div class="fwwho">BRIDGE<small>ESP32-S3 · GW_WIFI_BRIDGE.BIN</small></div>
@@ -435,6 +475,31 @@
           <div class="fwfile ts">writes the disk image now in memory to the floppy in the drive</div>
         </div>
         <div class="t" id="imgMsg"></div>
+      </div></div>
+      <div class="lcd"><div class="field">
+        <div class="ts">TEST A DISK</div>
+        <div class="fwrow">
+          <div class="fwwho">HEALTH CHECK<small>READ ONLY · KEEPS WHAT'S ON IT</small></div>
+          <div class="fwnow">&nbsp;</div>
+          <span></span>
+          <button class="key sm" id="healthGo" disabled style="color:var(--ink)"><i><b>&#9655;</b><span class="led"></span></i><span class="lbl">CHECK</span></button>
+          <div class="fwfile ts">every track read twice and graded, with its timing margin · loads the whole disk, files and all · ~1½ min</div>
+        </div>
+        <div class="fwrow">
+          <div class="fwwho">QUICK TEST<small>WRITE + READ BACK · ERASES IT</small></div>
+          <div class="fwnow">&nbsp;</div>
+          <span></span>
+          <button class="key sm" id="testQuick" disabled style="color:var(--ink)"><i><b>&#10003;</b><span class="led"></span></i><span class="lbl">QUICK</span></button>
+          <div class="fwfile ts">random then blank-format pattern, each read back · ~3 min · leaves the disk blank</div>
+        </div>
+        <div class="fwrow">
+          <div class="fwwho">FULL TEST<small>WRITE + READ BACK · ERASES IT</small></div>
+          <div class="fwnow">&nbsp;</div>
+          <span></span>
+          <button class="key sm" id="testGo" disabled style="color:var(--ink)"><i><b>&#10003;</b><span class="led"></span></i><span class="lbl">FULL</span></button>
+          <div class="fwfile ts">random, inverted and blank-format patterns, each read back, then one more read of the whole disk · ~6 min · leaves the disk blank; bad tracks are marked bad in the FAT</div>
+        </div>
+        <div class="t" id="testMsg"></div>
       </div></div>
       <div class="bot"><span class="serial">MODEL GW-WIFI · S/N <b id="snPlate">—</b> · RP2354 + ESP32-S3 · DC 3.7 V LI-ION</span>
         <div class="guard"><button id="forgetWifi" aria-label="Forget Wi-Fi"></button><div>FORGET WI-FI<br><small>reboots into the setup network</small></div></div></div>
@@ -560,21 +625,95 @@ for (let c = 0; c < NCYL; c++) {
   tCells.push({ cell, h: [h0, h1] });
 }
 let lastMap = '';
-function paintDiskMap(mapStr) {
-  if (!mapStr || mapStr === lastMap) return;
-  lastMap = mapStr;
+// Map view: 'state' (read outcome) or 'margin' (timing margin), remembered.
+let mapView = 'state';
+try { if (localStorage.getItem('floppy-mapview') === 'margin') mapView = 'margin'; } catch (e) {}
+let lastTm = null;   // the last /api/trackmap, so a view switch can repaint
+const HIST_BINS = 20;   // 0-4, 5-9, ... 95-100
+const mgHist = $('#mgHist');
+for (let b = 0; b < HIST_BINS; b++) mgHist.appendChild(document.createElement('i'));
+const mgThr = document.createElement('span'); mgThr.className = 'thr'; mgHist.appendChild(mgThr);
+
+function setMapView(v) {
+  mapView = v;
+  try { localStorage.setItem('floppy-mapview', v); } catch (e) {}
+  $('#mvState').classList.toggle('on', v === 'state');
+  $('#mvMargin').classList.toggle('on', v === 'margin');
+  $('#mapLegend').classList.toggle('hidden', v !== 'state');
+  $('#mgView').classList.toggle('hidden', v !== 'margin');
+  $('#tgrid').classList.toggle('mg', v === 'margin');
+  $('#diskMap').setAttribute('aria-label', v === 'margin'
+    ? 'Floppy timing-margin map: 80 cylinders by 2 heads, each track filled by its margin'
+    : 'Floppy read map: 80 cylinders by 2 heads, each track shown by read outcome');
+  lastMap = '';
+  if (lastTm) paintDiskMap(lastTm.map, lastTm.margin, lastTm);
+}
+$('#mapView').onclick = () => setMapView(mapView === 'state' ? 'margin' : 'state');
+
+// The MARGIN view's cells, legend, histogram and summary. low: the
+// firmware's MARGIN_LOW threshold (from /api/trackmap).
+function paintMargins(margins, low) {
+  const has = i => margins && margins[i] >= 0;
+  const n = { hi: 0, mid: 0, low: 0, none: 0 }, bins = new Array(HIST_BINS).fill(0);
+  let worst = -1, vals = [];
+  for (let c = 0; c < NCYL; c++) for (let h = 0; h < NHEAD; h++) {
+    const i = c * NHEAD + h, el = tCells[c].h[h];
+    el.className = '';
+    if (!has(i)) { el.classList.add('none'); el.style.removeProperty('--m'); n.none++; continue; }
+    const m = margins[i];
+    el.style.setProperty('--m', Math.max(m, 3) + '%');   // a sliver even at 0
+    if (m < low) { el.classList.add('low'); n.low++; }
+    else if (m < 2 * low) n.mid++; else n.hi++;
+    bins[Math.min(HIST_BINS - 1, Math.floor(m / (100 / HIST_BINS)))]++;
+    vals.push(m);
+    if (worst < 0 || m < margins[worst]) worst = i;
+  }
+  $('#mgHi').textContent = n.hi; $('#mgMid').textContent = n.mid;
+  $('#mgLow').textContent = n.low; $('#mgNone').textContent = n.none;
+  $('#mgHiLbl').textContent = `${2 * low}+`;
+  $('#mgMidLbl').textContent = `${low}-${2 * low - 1}`;
+  $('#mgLowLbl').textContent = low;
+  const peak = Math.max(1, ...bins);
+  [...mgHist.querySelectorAll('i')].forEach((b, k) => {
+    b.style.height = bins[k] ? Math.max(8, 100 * bins[k] / peak) + '%' : '2px';
+    b.classList.toggle('z', !bins[k]);
+    b.title = `margin ${k * 5}-${k * 5 + 4}: ${bins[k]} track${bins[k] === 1 ? '' : 's'}`;
+  });
+  mgThr.style.left = `calc(${low}% - 1px)`;
+  mgThr.title = `low threshold: ${low}`;
+  $('#mgAxis').innerHTML = `<span style="left:0">0</span><span style="left:${low}%">${low} LOW</span>` +
+    `<span style="left:50%">50</span><span style="left:100%">100</span>`;
+  if (!vals.length) {
+    $('#mgSum').textContent = 'NO MARGINS YET: RUN A HEALTH CHECK OR A TEST';
+  } else {
+    vals.sort((a, b) => a - b);
+    const med = vals[Math.floor(vals.length / 2)];
+    $('#mgSum').textContent = `${vals.length} TRACKS · MEDIAN ${med} · WORST ${margins[worst]} ` +
+      `CYL ${Math.floor(worst / NHEAD)} HEAD ${worst % NHEAD}`;
+  }
+}
+
+// margins: per-track timing margin 0..100 from a test or health check (-1 = none).
+function paintDiskMap(mapStr, margins, tm) {
+  const key = mapStr + (margins ? margins.join(',') : '');
+  if (!mapStr || key === lastMap) return;
+  lastMap = key;
+  const mg = i => (margins && margins[i] >= 0) ? ` · margin ${margins[i]}` : '';
   const counts = { '0':0, '1':0, '2':0, '3':0 };
   for (let c = 0; c < NCYL; c++) {
     const v = [mapStr[c * NHEAD] || '0', mapStr[c * NHEAD + 1] || '0'];
     for (let h = 0; h < NHEAD; h++) {
       counts[v[h]] = (counts[v[h]] || 0) + 1;
       tCells[c].h[h].className = TRK_CLS[v[h]] || '';
+      tCells[c].h[h].style.removeProperty('--m');
     }
-    tCells[c].cell.title = `Cyl ${c}\nHead 0 — ${TRK_LABEL[v[0]] || '?'}\nHead 1 — ${TRK_LABEL[v[1]] || '?'}`;
+    tCells[c].cell.title = `Cyl ${c}\nHead 0 — ${TRK_LABEL[v[0]] || '?'}${mg(c * NHEAD)}\nHead 1 — ${TRK_LABEL[v[1]] || '?'}${mg(c * NHEAD + 1)}`;
   }
   $('#mcGood').textContent = counts['1']; $('#mcRetry').textContent = counts['2'];
   $('#mcBad').textContent = counts['3'];  $('#mcUnread').textContent = counts['0'];
+  if (mapView === 'margin') paintMargins(margins, (tm && tm.margin_low) || 25);
 }
+setMapView(mapView);
 
 // Service panel: always collapsed on load.
 function setDiag(open) {
@@ -719,11 +858,14 @@ const failText = r => (r.j && r.j.error) || (r.text || '').replace(/<[^>]*>/g, '
 
 // ---- write a whole disk: from a file, or the image in memory (a copy) ----
 const IMG_BYTES = 1474560;
-const imgGo = $('#imgGo'), imgCopy = $('#imgCopy'), imgMsg = $('#imgMsg');
+const imgGo = $('#imgGo'), imgCopy = $('#imgCopy'), imgMsg = $('#imgMsg'),
+      testGo = $('#testGo'), testQuick = $('#testQuick'), healthGo = $('#healthGo'),
+      testMsg = $('#testMsg');
 let imgPick = null;
 function imgSync() {
   imgGo.disabled = fwBusy || diskBusy || !imgPick;
   imgCopy.disabled = fwBusy || diskBusy || !loadedState;
+  testGo.disabled = testQuick.disabled = healthGo.disabled = fwBusy || diskBusy;
 }
 $('#imgFile').onchange = e => {
   const f = e.target.files[0];
@@ -735,7 +877,7 @@ $('#imgFile').onchange = e => {
 };
 async function writeDisk(file) {
   const what = file ? `the image "${file.name}"` : 'the disk image now in memory';
-  if (!confirm(`Write ${what} to the floppy in the drive?\n\nEverything on that floppy is overwritten. It takes a few minutes.`)) return;
+  if (!confirm(`Write ${what} to the floppy in the drive?\n\nEverything on that floppy is overwritten. It takes about 2 minutes.`)) return;
   fwBusy = true; imgSync(); fwSync();
   try {
     imgMsg.textContent = file ? 'UPLOADING…' : 'STARTING…';
@@ -748,6 +890,29 @@ async function writeDisk(file) {
   finally { fwBusy = false; imgSync(); fwSync(); tick(); }
 }
 imgGo.onclick = () => writeDisk(imgPick);
+
+// ---- destructive surface test ----
+async function startDiskJob(url, what) {
+  testMsg.textContent = 'STARTING…';
+  try {
+    const r = await fetch(url, { method: 'POST' });
+    let j = null; try { j = await r.json(); } catch (e) {}
+    testMsg.textContent = r.ok && j && j.ok
+      ? `${what} · PROGRESS IS ON THE STATUS LINE, THE VERDICT UNDER LAST OP · STOP CANCELS`
+      : 'FAILED ▸ ' + ((j && j.error) || 'HTTP ' + r.status);
+  } catch (e) { testMsg.textContent = 'FAILED ▸ ' + e.message; }
+  tick();
+}
+const eraseWarn = mins => `EVERYTHING ON THE FLOPPY IS ERASED: every track is overwritten with test patterns and read back, and the disk is left blank (formatted). Takes about ${mins} minutes.`;
+testGo.onclick = () => {
+  if (!confirm('Run the FULL test on the floppy in the drive?\n\n' + eraseWarn(6))) return;
+  startDiskJob('/api/test', 'TESTING');
+};
+testQuick.onclick = () => {
+  if (!confirm('Run the QUICK test on the floppy in the drive?\n\n' + eraseWarn(3))) return;
+  startDiskJob('/api/test?mode=quick', 'TESTING');
+};
+healthGo.onclick = () => startDiskJob('/api/health', 'CHECKING');
 imgCopy.onclick = () => writeDisk(null);
 
 async function statusOnce() {
@@ -1034,8 +1199,29 @@ try { setColour(localStorage.getItem('floppy-colour') === '1'); } catch (e) { se
 $('#colKey').onclick = () => setColour(!document.documentElement.classList.contains('truecolour'));
 
 readBtn.onclick = async () => { await fetch('/api/read', { method: 'POST' }); };
+// Auto power-off on/off (saved on the board).
+const aoGo = $('#aoGo'), aoNow = $('#aoNow');
+let aoOn = null;
+function aoShow(on) {
+  aoOn = on;
+  aoNow.textContent = on == null ? '—' : on ? 'ON · 5 MIN IDLE' : 'OFF · STAYS ON';
+  keyText(aoGo, on ? 'TURN OFF' : 'TURN ON');
+  aoGo.disabled = on == null;
+}
+aoGo.onclick = async () => {
+  aoGo.disabled = true;
+  try {
+    const j = await (await fetch('/api/autooff?on=' + (aoOn ? 0 : 1), { method: 'POST' })).json();
+    aoShow(!!j.on);
+  } catch (e) { aoShow(aoOn); }
+};
 const retryBtn = $('#retry');
-retryBtn.onclick = async () => { await fetch('/api/retry', { method: 'POST' }); tick(); };
+// While a disk job runs, RETRY BAD is STOP (cancel at the next track).
+let jobRunning = false;
+retryBtn.onclick = async () => {
+  await fetch(jobRunning ? '/api/cancel' : '/api/retry', { method: 'POST' });
+  tick();
+};
 
 async function zipAll(files) {
   zipBtn.disabled = true; keyText(zipBtn, 'PACKING…');
@@ -1397,7 +1583,12 @@ async function tick() {
     const reading = s.state === 'reading';
     const loaded = s.state === 'ready' || s.state === 'dirty';
     diskBusy = reading; lastOta = s.ota || null; fwSync(); imgSync();
-    retryBtn.disabled = s.state !== 'dirty';
+    if (typeof s.autooff_on === 'boolean' && s.autooff_on !== aoOn) aoShow(s.autooff_on);
+    jobRunning = reading && !!s.op;
+    retryBtn.disabled = !jobRunning && s.state !== 'dirty';
+    keyText(retryBtn, jobRunning ? 'STOP' : 'RETRY BAD');
+    retryBtn.querySelector('b').textContent = jobRunning ? '■' : '↻';
+    retryBtn.title = jobRunning ? 'Stop the running job at the next track' : 'Re-read only the tracks that came out bad';
     snCur = s.serial || null; rtcOk = !!(s.time && s.time.rtc); snSync();
     readBtn.disabled = reading;
     setLed(readBtn, reading ? 'amb busy' : '');
@@ -1406,8 +1597,8 @@ async function tick() {
     updateAlert(s);
     updateDiag(s);
     // Track map: live during a read, and the final map once ready. Empty = clear.
-    if (s.state === 'empty') { paintDiskMap('0'.repeat(NCYL * NHEAD)); }
-    else { try { paintDiskMap((await (await fetch('/api/trackmap')).json()).map); } catch (e) {} }
+    if (s.state === 'empty') { lastTm = null; paintDiskMap('0'.repeat(NCYL * NHEAD)); }
+    else { try { const tm = await (await fetch('/api/trackmap')).json(); lastTm = tm; paintDiskMap(tm.map, tm.margin, tm); } catch (e) {} }
     // Prefer the device-reported bound IP; fall back to however we reached it.
     const host = (s.ip && s.ip !== '0.0.0.0') ? s.ip : location.hostname;
     subtitle.textContent = host === location.hostname ? host : `${location.hostname} · ${host}`;
@@ -1425,10 +1616,15 @@ async function tick() {
     let badge, text, hint;
     // "reading" also covers a retry of the bad tracks and a disk write (s.op).
     if (reading)                 { badge = `${pad2(pct)}%`;
-                                   text = s.op === 'write' ? 'WRITING' : s.op === 'retry' ? 'RETRYING BAD TRACKS' : 'READING';
-                                   hint = s.op === 'write' ? 'KEEP THE DISK IN · EVERY TRACK IS READ BACK' : 'KEEP THE DISK IN'; }
+                                   text = { write: 'WRITING', test: 'TESTING DISK', health: 'CHECKING DISK HEALTH', retry: 'RETRYING BAD TRACKS' }[s.op] || 'READING';
+                                   hint = { write: 'KEEP THE DISK IN · EVERY TRACK IS READ BACK', test: 'KEEP THE DISK IN · WRITE PASSES, EACH READ BACK', health: 'KEEP THE DISK IN · EVERY TRACK READ TWICE' }[s.op] || 'KEEP THE DISK IN'; }
     else if (s.state === 'dirty') { badge = 'PARTIAL'; text = `${s.bad} BAD SECTOR${s.bad === 1 ? '' : 'S'}`; hint = 'RETRY BAD RE-READS ONLY THE BAD TRACKS · SAVE TO SD TO ARCHIVE'; }
-    else if (s.state === 'error') { badge = 'ERROR'; text = /^write/.test(s.detail || '') ? 'WRITE FAILED' : 'READ FAILED'; hint = s.detail || 'CHECK THE DISK IS SEATED, THEN PRESS READ'; }
+    else if (s.state === 'error') { const d = s.detail || '';
+                                   badge = /cancelled/.test(d) ? 'STOPPED' : 'ERROR';
+                                   text = /^(quick )?test/.test(d) ? (/cancelled/.test(d) ? 'TEST STOPPED' : 'TEST FAILED')
+                                        : /^health/.test(d) ? (/cancelled/.test(d) ? 'CHECK STOPPED' : 'CHECK FAILED')
+                                        : /^write/.test(d) ? 'WRITE FAILED' : 'READ FAILED';
+                                   hint = d || 'CHECK THE DISK IS SEATED, THEN PRESS READ'; }
     else if (STATE_TXT[s.state])  { [badge, text, hint] = STATE_TXT[s.state]; }
     else                          { badge = String(s.state).toUpperCase(); text = ''; hint = ''; }
     if (s.queued && s.queued.length) hint = 'QUEUED ▸ ' + s.queued.join(', ').toUpperCase() + (hint ? ' · ' + hint : '');

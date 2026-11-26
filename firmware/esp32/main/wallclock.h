@@ -18,7 +18,8 @@ typedef enum {
 // the bus) and before anything timestamps a file.
 void wallclock_init(void);
 
-// Store the system time in the RTC (on every SNTP sync).
+// Store the system time in the RTC (on every SNTP sync). Non-blocking: the
+// write is scheduled for the next whole second; true = scheduled.
 bool wallclock_store(void);
 
 bool wallclock_rtc_present(void);

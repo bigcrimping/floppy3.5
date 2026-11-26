@@ -1,5 +1,6 @@
 #include "power.h"
 #include "lastoff.h"
+#include "temps.h"
 #include "app_config.h"
 #include <string.h>
 #include "freertos/FreeRTOS.h"
@@ -43,6 +44,32 @@ static power_state_t     s_state;          // guarded by s_lock
 #define MAX17048_STATUS_SC   0x20          // 1 % SOC change (only if ALSC set)
 #define MAX17048_STATUS_ALL  0x3F
 
+// RI is latched until the host clears it, and the gauge runs off the cell, so
+// it stays set across ESP reboots. Treat it as an event: clear it, then report
+// SOC as settling for this long while the model converges after its POR.
+#define GAUGE_SETTLE_US      (20LL * 60 * 1000000)
+static int64_t s_settle_until_us;          // power_task only
+
+// VRESET/ID (0x18): VRESET[7:1] in the high byte, 40 mV/LSB; bit 0 = Dis.
+// POR default is 3.0 V. The datasheet asks for 2.5 V with a captive cell:
+// at 3.0 V a spin-up sag on a low battery would reset the gauge and make it
+// re-estimate SOC from a loaded (low) voltage. Below BUVLO (3.0 V) anyway.
+#define MAX17048_REG_VRESET  0x18
+#define MAX17048_VRESET_MV   2500
+
+// RCOMP temperature compensation (datasheet "Temperature Compensation"):
+// RCOMP = RCOMP0 + (T-20)*TempCoUp above 20 C, + (T-20)*TempCoDown below,
+// at least once a minute. ROM-model defaults: 0x97, -0.5, -5.0.
+#define MAX17048_RCOMP0          0x97
+#define MAX17048_TEMPCO_UP_X10   (-5)      // -0.5 per C
+#define MAX17048_TEMPCO_DOWN_X10 (-50)     // -5.0 per C
+#define RCOMP_PERIOD_US          (60LL * 1000000)
+// The battery NTC only reaches the charger (zones, no degrees), so the RP2354
+// die stands in for cell temperature; it's on the same board, ~idle, and
+// tracks ambient. Readings older than this are ignored.
+#define RCOMP_TEMP_MAX_AGE_MS    (5u * 60 * 1000)
+static int64_t s_rcomp_next_us;            // power_task only
+
 // BQ25180 registers (from the Zephyr driver, checked against libmcu/bq25180).
 #define BQ25180_REG_STAT0    0x00
 #define BQ25180_REG_STAT1    0x01
@@ -63,6 +90,11 @@ static power_state_t     s_state;          // guarded by s_lock
 
 #define STAT1_TS_STAT_SHIFT  3             // bits 4:3
 #define STAT1_TS_STAT_MASK   0x03
+#define STAT1_SAFETY_TMR     0x04          // bit 2: safety timer expired (read-clear)
+
+#define STAT0_VINDPM_ACTIVE  0x04          // bit 2
+#define STAT0_VDPPM_ACTIVE   0x08          // bit 3
+#define STAT0_ILIM_ACTIVE    0x10          // bit 4
 
 #define FLAG0_TS_FAULT       0x80          // bit 7
 #define FLAG0_BUVLO_FAULT    0x02          // bit 1: battery fell below BUVLO
@@ -76,6 +108,7 @@ static power_state_t     s_state;          // guarded by s_lock
 #define IC_CTRL_WD_DISABLE   0x03
 #define IC_CTRL_SAFETY_SHIFT 2             // bits 3:2, fast-charge timer
 #define IC_CTRL_SAFETY_MASK  0x03
+#define IC_CTRL_2XTMR_EN     0x10          // bit 4: timer at half speed in DPM/TREG/JEITA
 
 // ---- charger configuration fields (datasheet SLUSE99C tables 8-13..8-17) ----
 // The input limit caps what the whole board draws from VIN, so the cell only
@@ -223,6 +256,21 @@ const char *power_chg_state_str(chg_state_t s)
     }
 }
 
+bool power_is_charged(const power_state_t *ps)
+{
+    return ps->chg_state == CHG_DONE && !ps->chg_disabled && !ps->tmr_fault &&
+           ps->ts_zone != TS_SUSPENDED;
+}
+
+const char *power_chg_label(const power_state_t *ps)
+{
+    if (ps->chg_state != CHG_DONE || power_is_charged(ps))
+        return power_chg_state_str(ps->chg_state);
+    if (ps->tmr_fault)               return "timeout";
+    if (ps->ts_zone == TS_SUSPENDED) return "temp";
+    return "paused";                 // host disabled (bench /api/charge)
+}
+
 const char *power_ts_zone_str(ts_zone_t z)
 {
     switch (z) {
@@ -316,17 +364,21 @@ skip_ilim:
 
     // Safety timer: the 6 h default can stop a 4000 mAh charge part-way, so
     // use 12 h, the longest finite setting (kept finite as a backstop).
+    // 2XTMR_EN halves the timer's speed while DPPM/VINDPM/TREG/JEITA cut the
+    // current: with only 100 mA of ILIM headroom over ICHG, using the unit
+    // while it charges would otherwise eat the 12 h.
     uint8_t icr;
     if (rd8(s_charger, BQ25180_REG_IC_CTRL, &icr)) {
         uint8_t want = (uint8_t)((icr & ~(IC_CTRL_SAFETY_MASK << IC_CTRL_SAFETY_SHIFT)) |
-                                 (0x02 << IC_CTRL_SAFETY_SHIFT));   // 0b10 = 12 h
+                                 (0x02 << IC_CTRL_SAFETY_SHIFT) |   // 0b10 = 12 h
+                                 IC_CTRL_2XTMR_EN);
         if (want == icr) {
-            ESP_LOGI(TAG, "safety timer already %u h",
+            ESP_LOGI(TAG, "safety timer already %u h, 2x slow in DPM",
                      (unsigned)safety_code_to_h(icr >> IC_CTRL_SAFETY_SHIFT));
         } else if (wr8(s_charger, BQ25180_REG_IC_CTRL, want)) {
             uint8_t back = 0;
             rd8(s_charger, BQ25180_REG_IC_CTRL, &back);
-            ESP_LOGW(TAG, "safety timer %u h -> %u h (IC_CTRL 0x%02X -> 0x%02X, reads 0x%02X)",
+            ESP_LOGW(TAG, "safety timer %u h -> %u h, 2XTMR on (IC_CTRL 0x%02X -> 0x%02X, reads 0x%02X)",
                      (unsigned)safety_code_to_h(icr >> IC_CTRL_SAFETY_SHIFT),
                      (unsigned)safety_code_to_h(back >> IC_CTRL_SAFETY_SHIFT),
                      icr, want, back);
@@ -444,6 +496,17 @@ static volatile int s_chg_req;          // 0 none, +1 enable, -1 disable
 #define CHARGE_DISABLE_MAX_US (10LL * 60 * 1000 * 1000)
 static int64_t s_chg_revert_us;         // 0 = not disabled by request
 
+// Safety-timer expiry: the charger stops and stays stopped (reporting
+// CHG_STAT "done") until CHG_DIS or VIN is toggled. Restart it once per USB
+// session; a second expiry means something is wrong, so leave it stopped
+// and visible. power_task only.
+#define TMR_MAX_RESTARTS 1
+static bool    s_tmr_pending;           // expiry seen, restart not yet tried
+static bool    s_tmr_fault;
+static uint8_t s_tmr_restarts;
+static uint8_t s_tmr_faults;
+static bool    s_prev_usb;
+
 static void IRAM_ATTR alrt_isr(void *arg)
 {
     (void)arg;
@@ -458,10 +521,79 @@ static uint8_t valrt_code(unsigned mv)
     return (uint8_t)(code > 0xFF ? 0xFF : code);
 }
 
+// Write VRESET, keeping Dis (bit 0); the ID low byte is read-only.
+static void gauge_set_vreset(void)
+{
+    uint16_t vr;
+    if (!rd16(s_gauge, MAX17048_REG_VRESET, &vr)) {
+        ESP_LOGW(TAG, "gauge VRESET unreadable");
+        return;
+    }
+    uint8_t code = (uint8_t)(MAX17048_VRESET_MV / 40);         // 62 -> 2.48 V
+    uint16_t want = (uint16_t)((((code << 1) | ((vr >> 8) & 1)) << 8) | (vr & 0xFF));
+    if (want != vr && !wr16(s_gauge, MAX17048_REG_VRESET, want)) {
+        ESP_LOGW(TAG, "gauge VRESET write failed");
+        return;
+    }
+    uint16_t back = 0;
+    rd16(s_gauge, MAX17048_REG_VRESET, &back);
+    uint16_t mv = (uint16_t)(((back >> 9) & 0x7F) * 40);
+    ESP_LOGI(TAG, "gauge VRESET %u -> %u mV (0x%04X -> 0x%04X)",
+             (unsigned)(((vr >> 9) & 0x7F) * 40), (unsigned)mv, vr, back);
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    s_state.vreset_mv = mv;
+    xSemaphoreGive(s_lock);
+}
+
+// RCOMP for a temperature, per the datasheet formula, rounded and clamped.
+static uint8_t rcomp_for(float t)
+{
+    float co = (t > 20.0f ? MAX17048_TEMPCO_UP_X10 : MAX17048_TEMPCO_DOWN_X10) / 10.0f;
+    float r = MAX17048_RCOMP0 + (t - 20.0f) * co;
+    if (r < 0.0f)   r = 0.0f;
+    if (r > 255.0f) r = 255.0f;
+    return (uint8_t)(r + 0.5f);
+}
+
+// Once a minute: write CONFIG.RCOMP for the current temperature. CONFIG also
+// holds ALRT, so it's written back exactly as read; a gauge alert latching in
+// the few-us read/write gap would be lost from the pin, but STATUS keeps it.
+static void gauge_rcomp_update(void)
+{
+    int64_t now = esp_timer_get_time();
+    if (now < s_rcomp_next_us) return;
+    s_rcomp_next_us = now + RCOMP_PERIOD_US;
+
+    temps_t t;
+    temps_get(&t);
+    bool fresh = t.rp_valid && t.rp_age_ms < RCOMP_TEMP_MAX_AGE_MS;
+
+    uint16_t cfg;
+    if (!rd16(s_gauge, MAX17048_REG_CONFIG, &cfg)) return;
+    uint8_t cur = (uint8_t)(cfg >> 8);
+    uint8_t want = fresh ? rcomp_for(t.rp_c) : cur;   // no temp: keep the last value
+    if (want != cur) {
+        if (!wr16(s_gauge, MAX17048_REG_CONFIG, (uint16_t)((want << 8) | (cfg & 0xFF)))) {
+            ESP_LOGW(TAG, "gauge RCOMP write failed");
+            return;
+        }
+        ESP_LOGI(TAG, "gauge RCOMP 0x%02X -> 0x%02X (%.1f C)", cur, want, t.rp_c);
+    }
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    s_state.gauge_rcomp = want;
+    if (fresh) {
+        s_state.rcomp_temp_c = (int8_t)(t.rp_c + (t.rp_c >= 0 ? 0.5f : -0.5f));
+        s_state.rcomp_comp = true;
+    }
+    xSemaphoreGive(s_lock);
+}
+
 // Program the thresholds and clear stale flags. Non-fatal: the poll still
 // reports SOC if this fails.
 static void gauge_configure(void)
 {
+    gauge_set_vreset();
+
     uint8_t lo = valrt_code(MAX17048_VALRT_MIN_MV);
     uint8_t hi = valrt_code(MAX17048_VALRT_MAX_MV);
     if (wr16(s_gauge, MAX17048_REG_VALRT, (uint16_t)(lo << 8) | hi))
@@ -491,18 +623,20 @@ static void gauge_configure(void)
     ESP_LOGI(TAG, "gauge empty alert at %u%% (CONFIG 0x%04X -> 0x%04X)",
              pct, cfg, want);
 
-    // Clear the threshold flags (stale under the new thresholds) but keep RI,
-    // which poll_once() reports so the UI can treat SOC as settling.
+    // Clear every stale flag. RI is cleared too (poll_once() would otherwise
+    // see it forever) and starts the settling window instead.
     uint16_t st;
     if (rd16(s_gauge, MAX17048_REG_STATUS, &st)) {
         uint8_t was = (uint8_t)(st >> 8) & MAX17048_STATUS_ALL;
-        if (was)
+        if (was) {
             ESP_LOGI(TAG, "gauge STATUS at boot 0x%02X%s", (unsigned)was,
-                     (was & MAX17048_STATUS_RI) ? " (RI kept)" : "");
-        uint16_t keep = (uint16_t)(st & ~((uint16_t)(MAX17048_STATUS_ALL &
-                                                    ~MAX17048_STATUS_RI) << 8));
-        if (was & ~MAX17048_STATUS_RI)
-            wr16(s_gauge, MAX17048_REG_STATUS, keep);
+                     (was & MAX17048_STATUS_RI) ? " (gauge POR, settling)" : "");
+            if (was & MAX17048_STATUS_RI)
+                s_settle_until_us = esp_timer_get_time() + GAUGE_SETTLE_US;
+            if (!wr16(s_gauge, MAX17048_REG_STATUS,
+                      (uint16_t)(st & ~((uint16_t)MAX17048_STATUS_ALL << 8))))
+                ESP_LOGW(TAG, "gauge STATUS clear failed");
+        }
     }
 }
 
@@ -604,8 +738,16 @@ static void poll_once(void)
         uint16_t st;
         if (rd16(s_gauge, MAX17048_REG_STATUS, &st)) {
             ns.gauge_status = (uint8_t)(st >> 8);
-            ns.gauge_reset  = (ns.gauge_status & MAX17048_STATUS_RI) != 0;
+            if (ns.gauge_status & MAX17048_STATUS_RI) {
+                // Gauge re-POR'd while we were running (cell dropout).
+                ESP_LOGW(TAG, "gauge reset at runtime — SOC settling");
+                s_settle_until_us = esp_timer_get_time() + GAUGE_SETTLE_US;
+                wr16(s_gauge, MAX17048_REG_STATUS,
+                     (uint16_t)(st & ~((uint16_t)MAX17048_STATUS_RI << 8)));
+            }
         }
+        ns.gauge_reset = s_settle_until_us &&
+                         esp_timer_get_time() < s_settle_until_us;
     }
 
     if (s_charger) {
@@ -615,6 +757,9 @@ static void poll_once(void)
             ns.usb_present  = (st0 & STAT0_VIN_PGOOD) != 0;
             ns.thermreg     = (st0 & STAT0_THERMREG) != 0;
             ns.ts_open      = (st0 & STAT0_TS_OPEN) != 0;
+            ns.ilim_active   = (st0 & STAT0_ILIM_ACTIVE) != 0;
+            ns.vindpm_active = (st0 & STAT0_VINDPM_ACTIVE) != 0;
+            ns.vdppm_active  = (st0 & STAT0_VDPPM_ACTIVE) != 0;
             ns.chg_state    = (chg_state_t)((st0 >> STAT0_CHG_STAT_SHIFT) & STAT0_CHG_STAT_MASK);
             // CC or CV only; DONE is a full battery, not charging.
             ns.charging     = (ns.chg_state == CHG_CONST_CURRENT ||
@@ -624,7 +769,26 @@ static void poll_once(void)
         if (rd8(s_charger, BQ25180_REG_STAT1, &st1)) {
             ns.stat1_raw = st1;
             ns.ts_zone   = (ts_zone_t)((st1 >> STAT1_TS_STAT_SHIFT) & STAT1_TS_STAT_MASK);
+            // Read-to-clear: act on it now or it is gone.
+            if ((st1 & STAT1_SAFETY_TMR) && !s_tmr_fault) {
+                s_tmr_fault = true;
+                s_tmr_pending = true;
+                if (s_tmr_faults < 255) s_tmr_faults++;
+                ESP_LOGE(TAG, "charge SAFETY TIMER expired — charging stopped");
+            }
         }
+        // Replugging clears the fault in the charger, so reset the session.
+        if (s_prev_usb && !ns.usb_present) {
+            s_tmr_fault = s_tmr_pending = false;
+            s_tmr_restarts = 0;
+        }
+        s_prev_usb = ns.usb_present;
+        // Charging again (after our restart) ends the fault.
+        if (s_tmr_fault && !s_tmr_pending && ns.charging)
+            s_tmr_fault = false;
+        ns.tmr_fault    = s_tmr_fault;
+        ns.tmr_restarts = s_tmr_restarts;
+        ns.tmr_faults   = s_tmr_faults;
         // FLAG0 is read-to-clear, so accumulate it. The first read is kept
         // separately: the charger stays powered from the cell, so it still
         // holds whatever fault cut power before this boot.
@@ -712,6 +876,36 @@ static void apply_charge_enable(bool en)
              en ? "" : " — auto-reverts in 10 min");
 }
 
+// Restart charging after a safety-timer expiry by toggling CHG_DIS, at most
+// TMR_MAX_RESTARTS per USB session. Never overrides a host disable.
+static void tmr_fault_service(void)
+{
+    s_tmr_pending = false;
+    uint8_t cur;
+    if (!s_charger || !s_prev_usb || !rd8(s_charger, BQ25180_REG_ICHG_CTRL, &cur))
+        return;
+    if (cur & ICHG_CHG_DIS) {
+        ESP_LOGW(TAG, "safety timeout while charging is host-disabled — not restarting");
+        return;
+    }
+    if (s_tmr_restarts >= TMR_MAX_RESTARTS) {
+        ESP_LOGE(TAG, "safety timer expired again after %u restart(s) — leaving charging "
+                      "stopped until USB is replugged", (unsigned)s_tmr_restarts);
+        return;
+    }
+    bool ok = wr8(s_charger, BQ25180_REG_ICHG_CTRL, (uint8_t)(cur | ICHG_CHG_DIS));
+    vTaskDelay(pdMS_TO_TICKS(50));
+    ok = wr8(s_charger, BQ25180_REG_ICHG_CTRL, cur) && ok;
+    if (!ok) {
+        ESP_LOGE(TAG, "safety timeout restart: ICHG_CTRL write failed");
+        wr8(s_charger, BQ25180_REG_ICHG_CTRL, cur);   // never leave it disabled
+        return;
+    }
+    s_tmr_restarts++;
+    ESP_LOGW(TAG, "safety timeout: charging restarted (%u/%u this session)",
+             (unsigned)s_tmr_restarts, (unsigned)TMR_MAX_RESTARTS);
+}
+
 void power_request_charge_enable(bool en)
 {
     s_chg_req = en ? 1 : -1;
@@ -733,6 +927,8 @@ static void power_task(void *arg)
         }
 
         poll_once();
+        if (s_gauge) gauge_rcomp_update();
+        if (s_tmr_pending) tmr_fault_service();
         // 2 s poll, cut short by an alert or a request.
         if (s_wake)
             xSemaphoreTake(s_wake, pdMS_TO_TICKS(2000));

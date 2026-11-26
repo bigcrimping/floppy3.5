@@ -191,6 +191,15 @@ static void test_mfm_verify_compare(void)
           "a sector that differs is bad (ok=%d bad=%d)", r.sectors_ok, r.sectors_bad);
     disk_image_read(lba, got, 1);
     CHECK(memcmp(got, other, SECTOR_SIZE) == 0, "verify leaves the image alone");
+    CHECK(r.sectors_stale == 1, "the differing sector counts as stale (stale=%d)",
+          r.sectors_stale);
+
+    // Every sector differs: the whole write didn't take.
+    for (int s = 0; s < DISK_SECTORS; s++)
+        disk_image_write(disk_lba(cyl, head, s + 1), other, 1);
+    mfm_decode_track(ticks, n, &ctx, &r);
+    CHECK(r.sectors_stale == DISK_SECTORS && r.sectors_bad == DISK_SECTORS,
+          "all-old track: stale=%d bad=%d", r.sectors_stale, r.sectors_bad);
 
     // Without the compare, a clean read of the wrong data passes (CRC only).
     ctx.verify_compare = 0;
@@ -259,6 +268,54 @@ static void test_mfm_wrong_cylinder(void)
           "nothing written to the image (done=%u)", disk_sectors_done());
 }
 
+// Timing margin: exact cells score 100; cell-time noise lowers it, roughly
+// as 100 * (0.5 - worst error) / 0.5; the track still decodes.
+static void test_mfm_margin(void)
+{
+    printf("test_mfm_margin\n");
+    const int cyl = 9, head = 1;
+    for (int s = 0; s < DISK_SECTORS; s++) fill_sector(g_sect[s], cyl, head, s);
+    enc_track_t tr; enc_bind(&tr, g_cells, sizeof(g_cells));
+    enc_build_track(&tr, cyl, head, g_sect);
+    static uint32_t ticks[300000];
+    size_t n = enc_cells_to_ticks(&tr, ticks, 300000, SF);
+
+    mfm_track_ctx_t ctx = { .sample_freq = SF, .exp_cyl = cyl, .exp_head = head,
+                            .want_margin = 1 };
+    mfm_result_t r;
+    disk_image_reset();
+    mfm_decode_track(ticks, n, &ctx, &r);
+    CHECK(r.margin >= 96, "clean flux: margin %d (want ~100)", r.margin);
+    CHECK(r.sectors_ok == DISK_SECTORS, "clean flux decodes (ok=%d)", r.sectors_ok);
+
+    // Uniform noise on every interval (72 ticks per cell): +/-0.1 cell, then
+    // +/-0.2. The PLL's own wobble adds to it, so the score is below
+    // 100 * (0.5 - noise) / 0.5, and must fall as the noise grows.
+    static uint32_t clean[300000];
+    memcpy(clean, ticks, n * sizeof ticks[0]);
+    int m[2];
+    const int amp[2] = { 7, 14 };
+    for (int k = 0; k < 2; k++) {
+        srand(7);
+        for (size_t i = 0; i < n; i++)
+            ticks[i] = clean[i] + (uint32_t)(rand() % (2 * amp[k] + 1)) - (uint32_t)amp[k];
+        disk_image_reset();
+        mfm_decode_track(ticks, n, &ctx, &r);
+        m[k] = r.margin;
+        CHECK(r.sectors_ok == DISK_SECTORS, "noise +/-%d ticks still decodes (ok=%d)",
+              amp[k], r.sectors_ok);
+    }
+    printf("  margins: clean 100, +/-0.1 cell %d, +/-0.2 cell %d\n", m[0], m[1]);
+    CHECK(m[0] < 96 && m[0] > m[1] && m[1] > 20, "margin falls with noise (%d, %d)",
+          m[0], m[1]);
+    CHECK(m[0] <= 80 && m[1] <= 61, "margin within the noise bound (%d, %d)", m[0], m[1]);
+
+    // Not asked for: stays 0.
+    ctx.want_margin = 0;
+    mfm_decode_track(ticks, n, &ctx, &r);
+    CHECK(r.margin == 0, "margin off: %d", r.margin);
+}
+
 int main(void)
 {
     if (!disk_image_init()) { printf("disk_image_init failed\n"); return 2; }
@@ -268,6 +325,7 @@ int main(void)
     test_mfm_verify_compare();
     test_mfm_error();
     test_mfm_wrong_cylinder();
+    test_mfm_margin();
 
     printf("\n%d checks, %d failures\n", g_checks, g_fail);
     if (g_fail == 0) printf("ALL PASS\n");

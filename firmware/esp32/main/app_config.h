@@ -11,11 +11,11 @@
 #define GW_SPI_MISO_GPIO    6       // <- RP2354 GPIO3 (SPI0 TX)    [IC1-6 GW_MISO]
 #define GW_SPI_CS_GPIO      15      // -> RP2354 GPIO1 (SPI0 CSn)   [IC1-8 GW_CS]
 #define GW_SPI_DRDY_GPIO    5       // <- RP2354 GPIO4: "slave has output" wake hint
-#define GW_SPI_CLK_HZ       (8 * 1000 * 1000)
+#define GW_SPI_CLK_HZ       (12 * 1000 * 1000)
 
 // Minimum gap between CS-up and the next CS-down: the slave validates its
 // frame and re-arms DMA in it (protocol §1).
-#define GW_SPI_GAP_US       400
+#define GW_SPI_GAP_US       100
 
 // Frame geometry lives in firmware/common/gwspi_wire.h, shared with the RP.
 
@@ -49,7 +49,17 @@
 
 // Capture window per track. One revolution is 200 ms; the extra ~11 ms catches
 // a sector straddling the random start point. Below ~215 ms sectors go missing.
-#define GW_READ_WINDOW_MS   220
+// 230 (was 220) gives ~30 ms of overlap, so more sectors near the start point
+// are captured twice and the decoder can use the better copy: a marginal
+// sector on the test disk (c58h1) failed its first read ~1 in 4 at 220 once
+// reads started streaming immediately (speed-up phase 3). Costs ~1.6 s a disk.
+#define GW_READ_WINDOW_MS   230
+
+// Disk test / health check grading (app_main.c), also served in /api/trackmap
+// for the web page's margin view. Not calibrated yet: MARGIN_LOW is reported,
+// but doesn't change a verdict.
+#define TEST_WEAK_MARGINAL  4       // this many weak tracks (or more) = MARGINAL
+#define MARGIN_LOW          25      // timing margin under this = a low-margin track
 
 // Read cyl 0, parse the FAT, then read only the tracks in use. Falls back to a
 // whole-disk read if the disk isn't FAT12. Set 0 for full-surface archival.

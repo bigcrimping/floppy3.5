@@ -38,3 +38,22 @@ void link_peer_reset(void);
 
 // One-line counters for logs and /api/status.
 const char *link_stats_str(void);
+
+// Master-side link profile (speed-up phase 2a): free-running, diff two reads.
+typedef struct {
+    uint32_t ex;            // exchanges
+    uint32_t ex_hdr;        // ... that clocked a header only (nothing granted or sent)
+    uint32_t ex_full;       // ... that clocked a full-size frame
+    uint32_t rx_frames;     // exchanges that delivered new payload to us
+    uint32_t rx_small;      // ... less than half a frame of it
+    uint32_t tx_frames;     // exchanges carrying our payload
+    uint64_t clocked_bytes; // bytes on the wire
+    uint64_t rx_bytes, tx_bytes;
+    uint64_t build_us;      // header/CRC/copy before the gap
+    uint64_t gap_us;        // waiting out GW_SPI_GAP_US
+    uint64_t xfer_us;       // the SPI transaction itself
+    uint64_t parse_us;      // CRC + ring push after it
+    uint64_t drdy_us;       // link_read asleep waiting for DRDY
+    uint64_t backoff_us;    // retry back-off sleeps
+} link_prof_t;
+void link_prof_get(link_prof_t *out);

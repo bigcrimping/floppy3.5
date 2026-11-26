@@ -123,6 +123,21 @@ static void end_command(const void *reply, uint32_t n) {
 
 // ---- READ_FLUX ----
 // Index markers are already inline in the captured stream (flux_pio.c).
+//
+// Over SPI (the ESP) the capture streams live: flux_capture() calls
+// rd_live() from its loop and the encoded bytes go out while the disk is
+// still turning, so a read costs ~max(capture, transfer) rather than the sum
+// (speed-up phase 3). Over USB the capture stays store-and-forward, exactly as
+// before: the superloop (tud_task) doesn't run during the capture anyway.
+
+// Bytes rd_live() may copy per call: a few us, well inside the capture's
+// ~0.5 ms sample-ring slack.
+#define LIVE_SLICE 2048
+// Queue live bytes in batches of at least this much, so the master clocks
+// ~1 KB frames rather than one per few hundred bytes of flux (unbatched it
+// averaged 157 B a frame, ~580 exchanges per track). The tail goes out after
+// the capture (RD_STREAM).
+#define LIVE_BATCH 1024
 
 static struct {
   enum { RD_DRAIN, RD_CAPTURE, RD_STREAM, RD_TERM } phase;
@@ -135,7 +150,23 @@ static struct {
   uint8_t status;
   uint32_t pos, len;  // streaming cursor over flux_buf
   bool first_capture; // index mode: cue-edge marker wanted (first rev only)
+  bool live;          // stream during the capture (SPI owner)
 } rd;
+
+// Called from the capture loop: send what's been encoded since the last call,
+// as far as the transport has room, at most LIVE_SLICE bytes.
+static void rd_live(uint32_t encoded) {
+  if (encoded - rd.pos < LIVE_BATCH)
+    return;
+  uint32_t budget = LIVE_SLICE;
+  while (rd.pos < encoded && budget && transport_tx_ready(CHUNK)) {
+    uint32_t n = umin(umin(CHUNK, encoded - rd.pos), budget);
+    transport_write(&flux_buf[rd.pos], n);
+    rd.pos += n;
+    budget -= n;
+    g_cap_prof.live_bytes += n;
+  }
+}
 
 static void read_stream_pass(void) {
   switch (rd.phase) {
@@ -156,26 +187,28 @@ static void read_stream_pass(void) {
     }
     uint32_t len;
     uint8_t st;
+    flux_live_fn live = rd.live ? rd_live : NULL;
+    rd.pos = 0; // the previous capture is fully sent (RD_STREAM)
     if (rd.revs_max == 0) {
       // Ticks mode: one bounded, uncued capture.
-      st = flux_capture(rd.ticks, 0, false, &len);
+      st = flux_capture(rd.ticks, 0, false, live, &len);
     } else {
       // Index mode, one index-to-index revolution per capture. Only the first
       // capture marks its cue edge; otherwise the host would decode a
       // zero-length revolution between captures. Revolutions are streamed
       // between captures, so they aren't contiguous on disk, but each is
       // complete.
-      st = flux_capture(0, READ_CUE_MS, rd.first_capture, &len);
+      st = flux_capture(0, READ_CUE_MS, rd.first_capture, live, &len);
       rd.first_capture = false;
     }
     if (st != ACK_OKAY) {
-      // Drop the data; the host reads the reason from GET_FLUX_STATUS.
+      // Drop the rest of the data (a live capture has already sent some);
+      // the host reads the reason from GET_FLUX_STATUS.
       rd.status = st;
       rd.phase = RD_TERM;
       return;
     }
-    rd.pos = 0;
-    rd.len = len;
+    rd.len = len; // RD_STREAM sends the rest, from rd.pos
     rd.phase = RD_STREAM;
     return;
   }
@@ -187,6 +220,7 @@ static void read_stream_pass(void) {
         uint32_t n = umin(CHUNK, rd.len - rd.pos);
         transport_write(&flux_buf[rd.pos], n);
         rd.pos += n;
+        g_cap_prof.tail_bytes += n;
       } else {
         rd.revs_done++;
         bool more = rd.revs_max && (rd.revs_done < rd.revs_max) &&
@@ -466,6 +500,11 @@ static void process_command(void) {
       // First 32 bytes of g_diag (the SPI/proto counters). The full set is on
       // the CDC1 console.
       memcpy(&reply[2], &g_diag, umin(32, sizeof(g_diag)));
+    } else if (sub == GETINFO_GW_CAPPROF) {
+      memcpy(&reply[2], &g_cap_prof, sizeof(g_cap_prof));
+      g_cap_prof.min_len = 0; // a fresh minimum for the next job
+    } else if (sub == GETINFO_GW_LINKPROF) {
+      memcpy(&reply[2], spi_link_prof(), sizeof(spi_link_prof_t));
     } else if (sub == GETINFO_GW_HEALTH) {
       gw_health_t h = {
           .die_temp_c100 = 0,
@@ -559,8 +598,11 @@ static void process_command(void) {
     if (!rf.ticks && !rf.max_index)
       goto bad_command; // an unbounded read can't be buffered
     memset(&rd, 0, sizeof(rd));
+    rd.live = transport_owner() == TRANSPORT_SPI;
     rd.phase = RD_DRAIN;
-    rd.drain_until = make_timeout_time_ms(READ_ACK_DRAIN_MS);
+    // A live capture keeps the link open, so the ack goes out alongside the
+    // flux: no drain wait.
+    rd.drain_until = make_timeout_time_ms(rd.live ? 0 : READ_ACK_DRAIN_MS);
     rd.ticks = rf.ticks;
     // Upstream's stream carries max_index index markers. N captures here
     // carry N+1 (the first also marks its cue edge), so capture max_index-1

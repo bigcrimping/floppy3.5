@@ -50,6 +50,7 @@ static uint32_t wr_buf[2][WR_CHUNK_WORDS];
 #define TICKS_BOUND_MARGIN_US 50000
 
 static uint off_read, off_write;
+flux_cap_prof_t g_cap_prof;
 static int ch_cap = -1, ch_wr = -1;
 
 // True once per falling edge of the active-low INDEX line.
@@ -114,7 +115,8 @@ void flux_pio_init(void) {
 
 flux_cap_status_t flux_pio_capture(uint8_t *dst, uint32_t cap,
                                    uint32_t capture_counts, uint32_t cue_ms,
-                                   bool cue_marker, uint32_t *len) {
+                                   bool cue_marker, flux_live_fn live,
+                                   uint32_t *len) {
   uint32_t out = 0;
   *len = 0;
 
@@ -135,6 +137,8 @@ flux_cap_status_t flux_pio_capture(uint8_t *dst, uint32_t cap,
   dma_channel_set_trans_count((uint)ch_cap, CAP_TRANS_MAX, true);
   pio_sm_set_enabled(FLUX_PIO, SM_READ, true);
 
+  uint32_t t_start = time_us_32();
+
   // Wall-clock bound so a silent RDDATA (no disk, dead drive, blank track)
   // still ends the capture.
   absolute_time_t deadline =
@@ -148,10 +152,13 @@ flux_cap_status_t flux_pio_capture(uint8_t *dst, uint32_t cap,
   uint64_t total_ticks = 0;
   flux_cap_status_t st = FLUX_CAP_OK;
   bool done = false;
+  uint32_t hiwater = 0;
 
   while (!done) {
     uint32_t produced =
         CAP_TRANS_MAX - dma_hw->ch[ch_cap].transfer_count;
+    if (produced - consumed > hiwater)
+      hiwater = produced - consumed;
     if (produced - consumed > CAP_RING_WORDS) {
       // Overwritten before read. Shouldn't happen, but never return corrupt
       // flux.
@@ -177,6 +184,9 @@ flux_cap_status_t flux_pio_capture(uint8_t *dst, uint32_t cap,
     if (done)
       break;
 
+    if (live)
+      live(out);
+
     // A marker for every falling edge, within a couple of samples of the
     // true edge (docs/flux-engine.md).
     if (index_falling(&idx_prev)) {
@@ -200,6 +210,16 @@ flux_cap_status_t flux_pio_capture(uint8_t *dst, uint32_t cap,
   dma_channel_abort((uint)ch_cap);
   pio_sm_clear_fifos(FLUX_PIO, SM_READ);
 
+  g_cap_prof.captures++;
+  if (st == FLUX_CAP_OVERFLOW)
+    g_cap_prof.overflows++;
+  if (hiwater > g_cap_prof.ring_hiwater)
+    g_cap_prof.ring_hiwater = hiwater;
+  g_cap_prof.last_len = out;
+  if (!g_cap_prof.min_len || out < g_cap_prof.min_len) {
+    g_cap_prof.min_len = out;
+    g_cap_prof.min_len_us = time_us_32() - t_start;
+  }
   *len = out;
   return st;
 }

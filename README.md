@@ -170,6 +170,10 @@ esptool.py --chip esp32s3 -p <PORT> write_flash @flash_args
 After this, you can update the firmware through WiFi. On the web page, go to
 **Rear panel ▸ SHOW ▸ FIRMWARE UPDATE**.
 
+Firmware v1.2.0 reads a disk in 45 seconds and writes one in 1:38, about 40%
+faster than v1.1.0. The write-up, with charts, is in
+[docs/speed-up.md](docs/speed-up.md).
+
 ### Build the firmware from the source code
 
 **Controller:** You must have pico-sdk **2.x** (for the RP2350),
@@ -199,7 +203,14 @@ Use the same procedure for `firmware/esp32-bringup/`.
 
 **Host tests:** These tests do not need a board or a target toolchain. Run
 `test/host/build.ps1` in `firmware/esp32` or in `firmware/rp2354`. You can use
-TinyCC, gcc or clang.
+TinyCC, gcc or clang: the scripts use `tcc` from the PATH, or the compiler in
+the `TCC` environment variable.
+
+**Release check:** before you publish a release, run
+`python tools/release_check.py release/<zip>`. It looks for e-mail addresses,
+LAN addresses, build-PC paths and keys in the repository and in the zip, and
+checks the zip's files and checksums. Put patterns of your own (your name,
+your network) in `tools/private_patterns.txt`; git ignores that file.
 
 ## Operation
 
@@ -275,6 +286,33 @@ has two blocks, head 0 on top and head 1 below. Each block is one track:
   retry.
 - Blinking: the track has bad sectors.
 - Light: the track was not read yet.
+
+### Test a disk
+
+Old disks fail. The web page has a **TEST A DISK** panel to find out if a
+disk is still good before you trust it with photos:
+
+| Test | What it does | Time |
+|---|---|---|
+| **HEALTH CHECK** | Reads every track twice and does not write. Grades each track and measures its timing margin. Also loads the files, the same as a read | ~1½ min |
+| **QUICK** | Writes a random pattern and then a blank format to every track, and reads each one back | ~3 min |
+| **FULL** | Writes random, inverted and blank-format patterns, reads each one back, then reads the whole disk once more | ~6 min |
+
+QUICK and FULL **erase the disk** and leave it blank (formatted). If some
+tracks are bad but cylinder 0 is good, the bad tracks are marked bad in the
+FAT, as DOS FORMAT did, so the disk is still usable with less space.
+
+The result is **GOOD**, **MARGINAL** (4 or more tracks needed a second try) or
+**BAD** (a track could not be read). STOP (the RETRY BAD key while a job
+runs) stops a test, a read or a write at the next track.
+
+**Timing margin:** 100 means every flux transition is in the middle of its
+bit cell. The number falls as the transitions drift towards the edge, where
+reading fails. Below 25 a track is shown as low. To see the margins, set the
+track map to **VIEW ▸ MARGIN**: each track fills up by its margin, low tracks
+blink, and a histogram shows all 160 tracks with the threshold marked. The
+threshold is not calibrated against many disks yet, so it does not change
+the result.
 
 ### USB and Greaseweazle
 

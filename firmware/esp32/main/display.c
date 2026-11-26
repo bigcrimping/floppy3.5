@@ -455,6 +455,8 @@ static bool                    s_blink;          // toggles each frame: bad trac
 static bool                    s_online;         // station has an address
 static TaskHandle_t            s_task;
 static int64_t                 s_read_t0, s_read_ms = -1;
+static const char *volatile    s_job_verb;       // display_set_job_pos()
+static volatile int            s_job_track = -1;
 static disk_state_t            s_last_state = DISK_EMPTY;
 
 // DISP steps through the pages; page 0 is the state-driven disk screen. Back
@@ -479,7 +481,7 @@ static void icon_row(bool online, bool reading, bool loaded, bool warn)
     bool have = got && ps.gauge_ok;
     batt_mode_t bm = BATT_DISCHARGE;
     if (got && ps.charger_ok && ps.usb_present)
-        bm = ps.chg_state == CHG_DONE ? BATT_FULL
+        bm = power_is_charged(&ps)    ? BATT_FULL
            : ps.charging              ? BATT_CHARGING
                                       : BATT_USB_IDLE;   // e.g. too hot/cold to charge
     battery(FR - 24, 4, have ? ps.soc : -1, bm);
@@ -639,9 +641,12 @@ static void screen_reading(void)
     const uint8_t *m = disk_trackmap();
     int last = -1;
     for (int i = 0; i < TOTAL_TRACKS; i++) if (m[i] & 3) last = i;
-    // The same screen serves a retry of the bad tracks and a disk write.
+    // The same screen serves a retry of the bad tracks, a disk write and the
+    // disk test (which names its pass and track itself).
     int op = ui_running_op();
     const char *verb = op == UI_OP_WRITE_DISK ? "WRITE" : op == UI_OP_RETRY ? "RETRY" : "CYL";
+    const char *jv = s_job_verb;
+    if (jv && s_job_track >= 0) { verb = jv; last = s_job_track; }
     if (last >= 0) snprintf(b, sizeof(b), "%s %02d HD%d", verb, last / DISK_HEADS, last % DISK_HEADS);
     else           snprintf(b, sizeof(b), "SEEKING");
     text_c(162, b, 1, 2, C_INK);
@@ -702,8 +707,10 @@ static void screen_error(void)
     fill(x + 18, 72, 5, 5, C_LCD);
     // A failed disk write says so in its detail line (app_main.c).
     const char *d = disk_get_detail();
-    bool wr = d && strncmp(d, "write", 5) == 0;
-    text(x + 52, 44, wr ? "WRITE" : "READ", 2, 2, C_INK);
+    bool test = d && (strncmp(d, "test", 4) == 0 || strncmp(d, "quick test", 10) == 0);
+    bool hlth = d && strncmp(d, "health", 6) == 0;
+    bool wr = test || (d && strncmp(d, "write", 5) == 0);
+    text(x + 52, 44, test ? "TEST" : hlth ? "CHECK" : wr ? "WRITE" : "READ", 2, 2, C_INK);
     text(x + 52, 64, "FAILED", 1, 2, C_INK);
     if (d && d[0]) text_wrap(100, FW / 8, d, 1, 2, 5, C_INK);
     text_c(220, "CHECK THE DISK IS", 1, 1, C_INK);
@@ -847,7 +854,12 @@ static void screen_power(void)
     float rate = ps.crate_valid ? ps.crate_cpph / 100.0f : 0;
     const char *st;
     if (ps.usb_present)
-        st = ps.chg_state == CHG_DONE ? "CHARGED" : ps.charging ? "CHARGING" : "ON USB";
+        st = power_is_charged(&ps)        ? "CHARGED"
+           : ps.charging                  ? "CHARGING"
+           : ps.tmr_fault                 ? "CHG TIMEOUT"
+           : ps.ts_zone == TS_SUSPENDED   ? "TOO HOT/COLD"
+           : ps.chg_disabled              ? "CHG PAUSED"
+                                          : "ON USB";
     else
         st = "ON BATTERY";
     text_c(176, st, 1, 2, C_INK);
@@ -1120,6 +1132,12 @@ void display_init(void)
 
 void display_set_mode(display_mode_t m) { s_mode = m; }
 void display_set_files(int n)           { s_files = n; }
+
+void display_set_job_pos(const char *verb, int track)
+{
+    s_job_track = track;
+    s_job_verb  = verb;
+}
 
 void display_note(const char *text)
 {

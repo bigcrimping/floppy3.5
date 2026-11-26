@@ -113,7 +113,7 @@ static esp_err_t h_status(httpd_req_t *req)
     net_sta_ip_str(ip, sizeof(ip));
 
     // "null" when no power-path IC is fitted.
-    char batt[680] = "null";
+    char batt[960] = "null";
     power_state_t ps;
     if (power_get(&ps)) {
         char rate_b[24] = "null";   // signed, negative = discharging
@@ -136,11 +136,16 @@ static esp_err_t h_status(httpd_req_t *req)
             "\"raw\":\"cc0=%02X cc1=%02X ic=%02X tmr=%02X ts=%02X\"},"
             // flag0 accumulated this boot; boot_flag0 latched before it
             // (bit 0 BAT_OCP, bit 1 BUVLO: why the board last went off).
-            "\"flag0\":%u,\"boot_flag0\":%d}",
+            "\"flag0\":%u,\"boot_flag0\":%d,"
+            // Safety-timer expiry, and what is limiting the charge right now.
+            "\"tmr_fault\":%s,\"tmr_restarts\":%u,\"tmr_faults\":%u,"
+            "\"limit\":{\"ilim\":%s,\"vindpm\":%s,\"vdppm\":%s},"
+            // Gauge tuning: VRESET and the temperature-compensated RCOMP.
+            "\"gauge\":{\"vreset_mv\":%u,\"rcomp\":%u,\"rcomp_c\":%d,\"rcomp_comp\":%s}}",
             ps.soc, (unsigned)ps.mv,
             ps.usb_present ? "true" : "false",
             ps.charging   ? "true" : "false",
-            power_chg_state_str(ps.chg_state), rate_b,
+            power_chg_label(&ps), rate_b,
             (unsigned)ps.ichg_ma, (unsigned)ps.vbatreg_mv,
             ps.thermreg ? "true" : "false",
             ps.gauge_reset ? "true" : "false",              // SOC still settling
@@ -159,7 +164,13 @@ static esp_err_t h_status(httpd_req_t *req)
             (int)ps.ts_hot_c, (unsigned)ps.ts_derate_pct,
             ps.cc0_raw, ps.cc1_raw, ps.ic_ctrl_raw, ps.tmr_ilim_raw,
             ps.ts_ctrl_raw, (unsigned)ps.flag0_raw,
-            ps.boot_flag0_valid ? (int)ps.boot_flag0 : -1);
+            ps.boot_flag0_valid ? (int)ps.boot_flag0 : -1,
+            ps.tmr_fault ? "true" : "false", (unsigned)ps.tmr_restarts,
+            (unsigned)ps.tmr_faults,
+            ps.ilim_active ? "true" : "false", ps.vindpm_active ? "true" : "false",
+            ps.vdppm_active ? "true" : "false",
+            (unsigned)ps.vreset_mv, (unsigned)ps.gauge_rcomp,
+            (int)ps.rcomp_temp_c, ps.rcomp_comp ? "true" : "false");
     }
 
     // Controller counters cached by the gw task after each drive session.
@@ -227,7 +238,7 @@ static esp_err_t h_status(httpd_req_t *req)
         "{\"serial\":\"%s\",\"state\":\"%s\",\"op\":\"%s\",\"queued\":[%s],\"disk_gen\":%u,\"done\":%u,\"total\":%u,\"bad\":%u,\"detail\":\"%s\","
         "\"link\":\"%s\",\"reset\":\"%s\",\"heap\":%u,\"heap_min\":%u,\"psram\":%u,\"ip\":\"%s\","
         "\"sd_cd\":%s,\"batt\":%s,\"gwdiag\":%s,\"time\":%s,\"temps\":%s,"
-        "\"ota\":{\"slot\":\"%s\",\"pending\":%s,\"ver\":\"%s\",\"built\":\"%s %s\"},\"drive5v\":{\"on\":%s,\"usb\":%s,\"hold_s\":%u},\"lastoff\":%s,\"wifipwr\":%s,\"up_s\":%lu,\"autooff_s\":%d}",
+        "\"ota\":{\"slot\":\"%s\",\"pending\":%s,\"ver\":\"%s\",\"built\":\"%s %s\"},\"drive5v\":{\"on\":%s,\"usb\":%s,\"hold_s\":%u},\"lastoff\":%s,\"wifipwr\":%s,\"up_s\":%lu,\"autooff_s\":%d,\"autooff_on\":%s}",
         serialno_get(), state_str(disk_get_state()), ui_op_name(ui_running_op()),
         queued_s, (unsigned)disk_generation(),
         (unsigned)disk_sectors_done(),
@@ -241,7 +252,8 @@ static esp_err_t h_status(httpd_req_t *req)
         app->version, app->date, app->time,
         power_boost_is_on() ? "true" : "false", gw_usb_active() ? "true" : "false",
         (unsigned)power_boost_hold_left(), lastoff_s, wifipwr_s,
-        (unsigned long)(esp_timer_get_time() / 1000000), ui_autooff_left_s());
+        (unsigned long)(esp_timer_get_time() / 1000000), ui_autooff_left_s(),
+        ui_autooff_user() ? "true" : "false");
     if (n < 0) n = 0;
     else if (n >= (int)sizeof(buf)) n = (int)sizeof(buf) - 1;
     httpd_resp_set_type(req, "application/json");
@@ -250,15 +262,29 @@ static esp_err_t h_status(httpd_req_t *req)
 
 // GET /api/trackmap -> {"cyls":80,"heads":2,"map":"..."}, one char per track
 // (cyl*heads+head): '0'=unread '1'=good '2'=retry '3'=bad.
+// "margin" (from a disk test or health check) is one number per track, -1
+// where it wasn't measured; left out when no track has one.
 static esp_err_t h_trackmap(httpd_req_t *req)
 {
-    const uint8_t *m = disk_trackmap();
-    char buf[TOTAL_TRACKS + 48];
-    int n = snprintf(buf, sizeof(buf), "{\"cyls\":%u,\"heads\":%u,\"map\":\"",
-                     (unsigned)DISK_CYLS, (unsigned)DISK_HEADS);
-    for (int i = 0; i < TOTAL_TRACKS && n < (int)sizeof(buf) - 3; i++)
+    const uint8_t *m = disk_trackmap(), *mg = disk_margins();
+    static char buf[TOTAL_TRACKS * 6 + 96];   // httpd is single-threaded
+    int n = snprintf(buf, sizeof(buf),
+                     "{\"cyls\":%u,\"heads\":%u,\"margin_low\":%d,\"weak_marginal\":%d,"
+                     "\"map\":\"", (unsigned)DISK_CYLS, (unsigned)DISK_HEADS,
+                     MARGIN_LOW, TEST_WEAK_MARGINAL);
+    for (int i = 0; i < TOTAL_TRACKS; i++)
         buf[n++] = (char)('0' + (m[i] & 3));
-    buf[n++] = '"'; buf[n++] = '}';
+    buf[n++] = '"';
+    bool any = false;
+    for (int i = 0; i < TOTAL_TRACKS; i++) if (mg[i] != DISK_MARGIN_NONE) any = true;
+    if (any) {
+        n += snprintf(buf + n, sizeof(buf) - n, ",\"margin\":[");
+        for (int i = 0; i < TOTAL_TRACKS; i++)
+            n += snprintf(buf + n, sizeof(buf) - n, "%s%d", i ? "," : "",
+                          mg[i] == DISK_MARGIN_NONE ? -1 : (int)mg[i]);
+        buf[n++] = ']';
+    }
+    buf[n++] = '}';
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_send(req, buf, n);
 }
@@ -521,6 +547,71 @@ static esp_err_t h_wifipwr(httpd_req_t *req)
     return httpd_resp_sendstr(req, resp);
 }
 
+// POST /api/autooff?on=0|1 -> the idle auto power-off on or off (saved in
+// NVS). {"ok":true,"on":bool}
+static esp_err_t h_autooff(httpd_req_t *req)
+{
+    ui_activity();      // a person is using the web page
+    char query[16], on[4];
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
+        httpd_query_key_value(query, "on", on, sizeof(on)) != ESP_OK ||
+        (strcmp(on, "0") != 0 && strcmp(on, "1") != 0)) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "need ?on=0 or ?on=1");
+        return ESP_FAIL;
+    }
+    ui_set_autooff_user(on[0] == '1');
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, ui_autooff_user() ? "{\"ok\":true,\"on\":true}"
+                                                     : "{\"ok\":true,\"on\":false}");
+}
+
+// GET /api/linkprof -> both ends' free-running link profile counters (speed-up
+// phase 2a; diff two reads taken around a job). "rp" is
+// the controller's copy as of the last drive session, null if it lacks it.
+static esp_err_t h_linkprof(httpd_req_t *req)
+{
+    link_prof_t m;
+    link_prof_get(&m);
+    char rp[300] = "null";
+    struct gw_linkprof p;
+    uint32_t age = 0;
+    if (gw_get_linkprof(&p, &age))
+        snprintf(rp, sizeof rp,
+                 "{\"age_ms\":%u,\"isr_n\":%u,\"isr_us_sum\":%u,\"isr_us_max\":%u,"
+                 "\"tx_frames\":%u,\"tx_bytes\":%u,\"lim_queue\":%u,\"lim_credit\":%u,"
+                 "\"win_full\":%u}",
+                 (unsigned)age, (unsigned)p.isr_n, (unsigned)p.isr_us_sum,
+                 (unsigned)p.isr_us_max, (unsigned)p.tx_frames, (unsigned)p.tx_bytes,
+                 (unsigned)p.lim_queue, (unsigned)p.lim_credit, (unsigned)p.win_full);
+    extern char g_last_bad_read[];
+    char cp[260] = "null";
+    struct gw_capprof q;
+    if (gw_get_capprof(&q))
+        snprintf(cp, sizeof cp,
+                 "{\"captures\":%u,\"overflows\":%u,\"ring_hiwater\":%u,"
+                 "\"min_len\":%u,\"live_bytes\":%u,\"tail_bytes\":%u,"
+                 "\"last_len\":%u,\"min_len_us\":%u}",
+                 (unsigned)q.captures, (unsigned)q.overflows, (unsigned)q.ring_hiwater,
+                 (unsigned)q.min_len, (unsigned)q.live_bytes, (unsigned)q.tail_bytes,
+                 (unsigned)q.last_len, (unsigned)q.min_len_us);
+    static char b[1400];      // httpd runs one handler at a time
+    // %u only (nano printf): 64-bit sums go out in KB / ms where they could wrap.
+    snprintf(b, sizeof b,
+             "{\"esp\":{\"ex\":%u,\"ex_hdr\":%u,\"ex_full\":%u,\"rx_frames\":%u,"
+             "\"rx_small\":%u,\"tx_frames\":%u,\"clocked_kb\":%u,\"rx_kb\":%u,"
+             "\"tx_kb\":%u,\"build_us\":%u,\"gap_us\":%u,\"xfer_us\":%u,"
+             "\"parse_us\":%u,\"drdy_us\":%u,\"backoff_us\":%u},\"rp\":%s,"
+             "\"cap\":%s,\"last_bad_read\":\"%s\"}",
+             (unsigned)m.ex, (unsigned)m.ex_hdr, (unsigned)m.ex_full,
+             (unsigned)m.rx_frames, (unsigned)m.rx_small, (unsigned)m.tx_frames,
+             (unsigned)(m.clocked_bytes / 1024), (unsigned)(m.rx_bytes / 1024),
+             (unsigned)(m.tx_bytes / 1024), (unsigned)m.build_us, (unsigned)m.gap_us,
+             (unsigned)m.xfer_us, (unsigned)m.parse_us, (unsigned)m.drdy_us,
+             (unsigned)m.backoff_us, rp, cp, g_last_bad_read);
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, b);
+}
+
 // POST /api/rpflash?addr=0x10000000 with a raw .bin body -> reprogram the
 // RP2354A over SWD (rp_flash.c). Runs on the httpd task for tens of seconds
 // with the controller halted. addr is the XIP base for build/gw_rp2354.bin.
@@ -734,6 +825,55 @@ static esp_err_t h_image_write(httpd_req_t *req)
     return send_triggered(req, busy);
 }
 
+static esp_err_t send_job_running(httpd_req_t *req)
+{
+    httpd_resp_set_status(req, "409 Conflict");
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"a disk job is running\"}");
+}
+
+// POST /api/test[?mode=quick] -> destructive disk test of the floppy in the
+// drive: every track written and read back with three patterns, then re-read
+// (quick: two patterns, no re-read); the disk is left blank FAT12. Progress
+// and the verdict are in /api/status.
+static esp_err_t h_test(httpd_req_t *req)
+{
+    ui_activity();      // a person is using the web page
+    if (disk_get_state() == DISK_READING) return send_job_running(req);
+    char query[32], mode[12] = "";
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK)
+        httpd_query_key_value(query, "mode", mode, sizeof(mode));
+    bool quick = strcmp(mode, "quick") == 0;
+    bool busy = ui_running_op() >= 0;
+    ui_trigger_op(quick ? UI_OP_TEST_QUICK : UI_OP_TEST);
+    ESP_LOGW(TAG, "disk %s requested", quick ? "quick test" : "test");
+    return send_triggered(req, busy);
+}
+
+// POST /api/health -> read-only health check: every track read twice, graded,
+// timing margin measured; loads the disk like a full-surface read.
+static esp_err_t h_health(httpd_req_t *req)
+{
+    ui_activity();      // a person is using the web page
+    if (disk_get_state() == DISK_READING) return send_job_running(req);
+    bool busy = ui_running_op() >= 0;
+    ui_trigger_op(UI_OP_HEALTH);
+    return send_triggered(req, busy);
+}
+
+// POST /api/cancel -> stop the running disk job at its next track. Queued
+// jobs still run. {"ok":true,"op":"<name>"} or "op":"" if nothing was running.
+static esp_err_t h_cancel(httpd_req_t *req)
+{
+    ui_activity();      // a person is using the web page
+    int op = ui_running_op();
+    ui_cancel();
+    char buf[48];
+    snprintf(buf, sizeof buf, "{\"ok\":true,\"op\":\"%s\"}", op >= 0 ? ui_op_name(op) : "");
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, buf);
+}
+
 // POST /api/wtest -> write self-test: rewrite cyl0 unchanged and report in
 // /api/status "detail".
 static esp_err_t h_wtest(httpd_req_t *req)
@@ -940,12 +1080,16 @@ void web_start(void)
     static const httpd_uri_t routes[] = {
         { .uri = "/",            .method = HTTP_GET,  .handler = h_index  },
         { .uri = "/api/status",  .method = HTTP_GET,  .handler = h_status },
+        { .uri = "/api/linkprof", .method = HTTP_GET, .handler = h_linkprof },
         { .uri = "/api/trackmap",.method = HTTP_GET,  .handler = h_trackmap },
         { .uri = "/api/list",    .method = HTTP_GET,  .handler = h_list   },
         { .uri = "/api/read",    .method = HTTP_POST, .handler = h_read   },
         { .uri = "/api/delete",  .method = HTTP_POST, .handler = h_delete },
         { .uri = "/api/wtest",   .method = HTTP_POST, .handler = h_wtest  },
         { .uri = "/api/retry",   .method = HTTP_POST, .handler = h_retry  },
+        { .uri = "/api/test",    .method = HTTP_POST, .handler = h_test   },
+        { .uri = "/api/health",  .method = HTTP_POST, .handler = h_health },
+        { .uri = "/api/cancel",  .method = HTTP_POST, .handler = h_cancel },
         { .uri = "/api/image/write", .method = HTTP_POST, .handler = h_image_write },
         { .uri = "/api/sd",      .method = HTTP_GET,  .handler = h_sd     },
         { .uri = "/api/sd/save", .method = HTTP_POST, .handler = h_sd_save },
@@ -955,6 +1099,7 @@ void web_start(void)
         { .uri = "/api/charge",  .method = HTTP_POST, .handler = h_charge  },
         { .uri = "/api/drive5v", .method = HTTP_POST, .handler = h_drive5v },
         { .uri = "/api/wifipwr", .method = HTTP_POST, .handler = h_wifipwr },
+        { .uri = "/api/autooff", .method = HTTP_POST, .handler = h_autooff },
         { .uri = "/api/rpflash", .method = HTTP_POST, .handler = h_rpflash },
         { .uri = "/api/ota",     .method = HTTP_POST, .handler = h_ota     },
         { .uri = "/api/serial",  .method = HTTP_POST, .handler = h_serial  },

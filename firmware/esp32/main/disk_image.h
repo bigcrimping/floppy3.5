@@ -37,6 +37,10 @@ bool disk_image_read(uint32_t lba, uint8_t *buf, uint32_t count);
 // FatFs write path (file delete). Written sectors become valid.
 bool disk_image_write(uint32_t lba, const uint8_t *buf, uint32_t count);
 
+// Mark sectors bad without changing their contents (the disk test: the image
+// holds what was written, but the disk can't be trusted to hold it).
+void disk_image_invalidate(uint32_t lba, uint32_t count);
+
 // ---- Cylinder-0 rollback checkpoint ----
 // A delete edits cyl0 in the image before it is written to the disk. If that
 // write fails, roll back so the image matches the disk again. A second
@@ -101,3 +105,9 @@ typedef enum {
 void disk_trackmap_reset(void);                                  // all -> TRK_UNREAD
 void disk_trackmap_set(uint8_t cyl, uint8_t head, track_state_t st);
 const uint8_t *disk_trackmap(void);   // TOTAL_TRACKS bytes; idx = cyl*DISK_HEADS+head
+
+// Per-track timing margin (mfm_result_t.margin, 0..100) from the disk test or
+// health check; DISK_MARGIN_NONE where not measured. Cleared with the track map.
+#define DISK_MARGIN_NONE 0xFF
+void disk_margin_set(uint8_t cyl, uint8_t head, int margin);
+const uint8_t *disk_margins(void);   // TOTAL_TRACKS bytes, same index

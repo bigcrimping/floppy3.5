@@ -60,8 +60,12 @@
 // <= 120 KB writes. Must be a power of two (SOURCE/SINK timestamp ring).
 #define FLUX_BUF_SZ (256 * 1024)
 
-#define SPI_RX_RING_SZ (16 * 1024)
-#define SPI_TX_RING_SZ (8 * 1024)
+// SPI link rings. Two 4 KB frames are in flight each way (window 2) and stay
+// in the ring until acked, so each ring needs well over 8 KB or new frames
+// go out half empty: an 8 KB TX ring averaged 2.4 KB per frame (speed-up
+// phase 2a). 32 KB keeps credit (a u16 field) in range.
+#define SPI_RX_RING_SZ (32 * 1024)
+#define SPI_TX_RING_SZ (32 * 1024)
 
 // ---- Drive timing (Greaseweazle factory defaults; SET_PARAMS can change) ----
 #define DELAY_SELECT_US 10
